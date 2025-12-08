@@ -1,11 +1,13 @@
 /**
  * TemplatesView - Gestión de plantillas de entrenamiento
+ * Con integración de generador IA
  */
 
 import { useState, useMemo } from 'react';
 import { PageContainer } from '../components/layout';
 import { Card, Button, Input, Badge, EmptyState, Modal, Select } from '../components/ui';
 import { useTrainingStore, useTemplates, useExercises } from '../store/store';
+import { useTemplateGenerator, useAIEnabled } from '../ai';
 import type { WorkoutTemplate, TemplateExercise, MuscleGroup, ExerciseCategory, Exercise } from '../types/types';
 
 export function TemplatesView() {
@@ -14,8 +16,14 @@ export function TemplatesView() {
     const { addTemplate, updateTemplate, deleteTemplate, addExercise } = useTrainingStore();
 
     const [showCreateModal, setShowCreateModal] = useState(false);
+    const [showAIModal, setShowAIModal] = useState(false);
     const [editingTemplate, setEditingTemplate] = useState<WorkoutTemplate | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
+
+    // AI Generator
+    const aiEnabled = useAIEnabled();
+    const { generate, isGenerating, error: aiError, lastGenerated } = useTemplateGenerator();
+    const [aiPrompt, setAIPrompt] = useState('');
 
     const filteredTemplates = useMemo(() => {
         if (!searchQuery.trim()) return templates;
@@ -25,11 +33,63 @@ export function TemplatesView() {
         );
     }, [templates, searchQuery]);
 
+    // Generar plantilla con IA
+    const handleGenerateTemplate = async () => {
+        if (!aiPrompt.trim()) return;
+        const result = await generate(aiPrompt);
+        if (result) {
+            // Crear ejercicios si no existen y mapear la plantilla
+            const templateExercises: TemplateExercise[] = result.exercises.map((ex, i) => {
+                // Buscar ejercicio existente o crear uno nuevo
+                let existingEx = exercises.find(e => e.name.toLowerCase() === ex.name.toLowerCase());
+                if (!existingEx) {
+                    existingEx = addExercise({
+                        name: ex.name,
+                        muscleGroups: ['full_body' as MuscleGroup],
+                        category: 'strength' as ExerciseCategory,
+                        isCustom: true,
+                    });
+                }
+                return {
+                    id: crypto.randomUUID(),
+                    exerciseId: existingEx.id,
+                    defaultSets: ex.sets,
+                    defaultReps: ex.reps,
+                    restSeconds: ex.restSeconds,
+                    notes: ex.notes,
+                    order: i,
+                };
+            });
+
+            addTemplate({
+                name: result.name,
+                description: result.description,
+                exercises: templateExercises,
+                difficulty: result.difficulty,
+                estimatedDuration: result.estimatedDuration,
+                tags: result.tags,
+                isArchived: false,
+            });
+
+            setShowAIModal(false);
+            setAIPrompt('');
+        }
+    };
+
     return (
         <PageContainer
             title="Plantillas"
             subtitle={`${templates.length} plantilla${templates.length !== 1 ? 's' : ''}`}
-            actions={<Button onClick={() => setShowCreateModal(true)}>+ Nueva Plantilla</Button>}
+            actions={
+                <div className="flex gap-2">
+                    {aiEnabled && (
+                        <Button variant="ghost" onClick={() => setShowAIModal(true)}>
+                            🤖 Crear con IA
+                        </Button>
+                    )}
+                    <Button onClick={() => setShowCreateModal(true)}>+ Nueva Plantilla</Button>
+                </div>
+            }
         >
             {templates.length > 0 && (
                 <div className="mb-6">
@@ -47,8 +107,8 @@ export function TemplatesView() {
                     <EmptyState
                         icon="📋"
                         title="Sin plantillas"
-                        description="Crea plantillas para reutilizar entrenamientos."
-                        action={{ label: 'Crear Plantilla', onClick: () => setShowCreateModal(true) }}
+                        description={aiEnabled ? "Crea plantillas manualmente o genera una con IA." : "Crea plantillas para reutilizar entrenamientos."}
+                        action={{ label: aiEnabled ? '🤖 Crear con IA' : 'Crear Plantilla', onClick: () => aiEnabled ? setShowAIModal(true) : setShowCreateModal(true) }}
                     />
                 </Card>
             ) : filteredTemplates.length === 0 ? (
@@ -64,11 +124,24 @@ export function TemplatesView() {
                             exercises={exercises}
                             onEdit={() => setEditingTemplate(template)}
                             onDelete={() => deleteTemplate(template.id)}
+                            onDuplicate={() => {
+                                addTemplate({
+                                    name: `${template.name} (copia)`,
+                                    description: template.description,
+                                    category: template.category,
+                                    difficulty: template.difficulty,
+                                    estimatedDuration: template.estimatedDuration,
+                                    exercises: template.exercises.map(ex => ({ ...ex, id: crypto.randomUUID() })),
+                                    tags: template.tags,
+                                    isArchived: false,
+                                });
+                            }}
                         />
                     ))}
                 </div>
             )}
 
+            {/* Modal de Creación Manual */}
             <TemplateFormModal
                 isOpen={showCreateModal}
                 onClose={() => setShowCreateModal(false)}
@@ -77,6 +150,7 @@ export function TemplatesView() {
                 onAddExercise={addExercise}
             />
 
+            {/* Modal de Edición */}
             {editingTemplate && (
                 <TemplateFormModal
                     isOpen={true}
@@ -87,6 +161,62 @@ export function TemplatesView() {
                     onAddExercise={addExercise}
                 />
             )}
+
+            {/* Modal de Generación IA */}
+            <Modal
+                isOpen={showAIModal}
+                onClose={() => { setShowAIModal(false); setAIPrompt(''); }}
+                title="🤖 Generar Plantilla con IA"
+                size="md"
+                footer={
+                    <>
+                        <Button variant="ghost" onClick={() => setShowAIModal(false)}>Cancelar</Button>
+                        <Button onClick={handleGenerateTemplate} disabled={isGenerating || !aiPrompt.trim()}>
+                            {isGenerating ? '⏳ Generando...' : '✨ Generar'}
+                        </Button>
+                    </>
+                }
+            >
+                <div className="space-y-4">
+                    <p className="text-sm text-[var(--color-text-muted)]">
+                        Describe la plantilla que quieres crear. La IA generará una rutina completa basada en tu descripción.
+                    </p>
+
+                    <textarea
+                        value={aiPrompt}
+                        onChange={(e) => setAIPrompt(e.target.value)}
+                        placeholder="Ej: Rutina de fuerza para principiantes, enfocada en tren superior, 3 días por semana..."
+                        rows={4}
+                        className="input resize-none"
+                        autoFocus
+                    />
+
+                    {/* Suggestions */}
+                    <div className="flex flex-wrap gap-2">
+                        {['Fuerza upper body', 'Hipertrofia piernas', 'Full body principiante', 'Push-Pull-Legs'].map(suggestion => (
+                            <button
+                                key={suggestion}
+                                onClick={() => setAIPrompt(suggestion)}
+                                className="text-xs px-3 py-1 rounded-full bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg-elevated)] text-[var(--color-text-muted)]"
+                            >
+                                {suggestion}
+                            </button>
+                        ))}
+                    </div>
+
+                    {aiError && (
+                        <div className="p-3 rounded-lg bg-red-900/20 border border-red-500/30 text-red-400 text-sm">
+                            {aiError}
+                        </div>
+                    )}
+
+                    {lastGenerated && !isGenerating && (
+                        <div className="p-3 rounded-lg bg-green-900/20 border border-green-500/30 text-green-400 text-sm">
+                            ✓ Plantilla "{lastGenerated.name}" generada con {lastGenerated.exercises.length} ejercicios
+                        </div>
+                    )}
+                </div>
+            </Modal>
         </PageContainer>
     );
 }
@@ -97,9 +227,10 @@ interface TemplateCardProps {
     exercises: Exercise[];
     onEdit: () => void;
     onDelete: () => void;
+    onDuplicate: () => void;
 }
 
-function TemplateCard({ template, exercises, onEdit, onDelete }: TemplateCardProps) {
+function TemplateCard({ template, exercises, onEdit, onDelete, onDuplicate }: TemplateCardProps) {
     const [showDelete, setShowDelete] = useState(false);
     const getName = (id: string) => exercises.find(e => e.id === id)?.name || 'Ejercicio';
 
@@ -128,7 +259,10 @@ function TemplateCard({ template, exercises, onEdit, onDelete }: TemplateCardPro
                     <span>📋 {template.exercises.length} ejercicios</span>
                     {template.estimatedDuration && <span>⏱️ ~{template.estimatedDuration}min</span>}
                 </div>
-                <button onClick={(e) => { e.stopPropagation(); setShowDelete(true); }} className="absolute top-4 right-4 p-2 rounded-lg opacity-0 group-hover:opacity-100 hover:text-red-400 transition-all">🗑️</button>
+                <div className="absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                    <button onClick={(e) => { e.stopPropagation(); onDuplicate(); }} className="p-2 rounded-lg hover:bg-[var(--color-bg-elevated)] hover:text-[var(--color-accent-gold)]" title="Duplicar">📝</button>
+                    <button onClick={(e) => { e.stopPropagation(); setShowDelete(true); }} className="p-2 rounded-lg hover:text-red-400" title="Eliminar">🗑️</button>
+                </div>
             </Card>
             <Modal isOpen={showDelete} onClose={() => setShowDelete(false)} title="Eliminar" size="sm" footer={<><Button variant="ghost" onClick={() => setShowDelete(false)}>Cancelar</Button><Button className="bg-red-600" onClick={() => { onDelete(); setShowDelete(false); }}>Eliminar</Button></>}>
                 <p>¿Eliminar <strong>{template.name}</strong>?</p>
@@ -211,12 +345,33 @@ function TemplateFormModal({ isOpen, onClose, template, exercises, onSave, onAdd
                     ) : (
                         <div className="space-y-2">
                             {templateExercises.map((ex, i) => (
-                                <div key={ex.id} className="flex items-center gap-2 p-3 rounded-lg bg-[var(--color-bg-tertiary)]">
-                                    <span className="flex-1 text-sm font-medium">{getName(ex.exerciseId)}</span>
-                                    <input type="number" value={ex.defaultSets} onChange={(e) => { const u = [...templateExercises]; u[i] = { ...u[i], defaultSets: Number(e.target.value) }; setTemplateExercises(u); }} className="w-12 text-center p-1 rounded bg-[var(--color-bg-secondary)] border border-[var(--color-border-default)] text-sm" />
-                                    <span className="text-xs text-[var(--color-text-muted)]">x</span>
-                                    <input type="number" value={ex.defaultReps || ''} onChange={(e) => { const u = [...templateExercises]; u[i] = { ...u[i], defaultReps: Number(e.target.value) || undefined }; setTemplateExercises(u); }} className="w-12 text-center p-1 rounded bg-[var(--color-bg-secondary)] border border-[var(--color-border-default)] text-sm" placeholder="?" />
-                                    <button onClick={() => setTemplateExercises(templateExercises.filter((_, j) => j !== i))} className="text-red-400 p-1">✕</button>
+                                <div key={ex.id} className="p-3 rounded-lg bg-[var(--color-bg-tertiary)] space-y-2">
+                                    <div className="flex items-center gap-2">
+                                        <span className="flex-1 text-sm font-medium">{getName(ex.exerciseId)}</span>
+                                        <button onClick={() => setTemplateExercises(templateExercises.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-300 p-1">✕</button>
+                                    </div>
+                                    <div className="flex items-center gap-3 text-sm">
+                                        <div className="flex items-center gap-1">
+                                            <label className="text-xs text-[var(--color-text-muted)]">Series:</label>
+                                            <input type="number" value={ex.defaultSets} onChange={(e) => { const u = [...templateExercises]; u[i] = { ...u[i], defaultSets: Number(e.target.value) }; setTemplateExercises(u); }} className="w-14 text-center p-1 rounded bg-[var(--color-bg-secondary)] border border-[var(--color-border-default)] text-sm" min={1} />
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                            <label className="text-xs text-[var(--color-text-muted)]">Reps:</label>
+                                            <input type="number" value={ex.defaultReps || ''} onChange={(e) => { const u = [...templateExercises]; u[i] = { ...u[i], defaultReps: Number(e.target.value) || undefined }; setTemplateExercises(u); }} className="w-14 text-center p-1 rounded bg-[var(--color-bg-secondary)] border border-[var(--color-border-default)] text-sm" placeholder="?" />
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                            <label className="text-xs text-[var(--color-text-muted)]">Desc:</label>
+                                            <input type="number" value={ex.restSeconds || ''} onChange={(e) => { const u = [...templateExercises]; u[i] = { ...u[i], restSeconds: Number(e.target.value) || undefined }; setTemplateExercises(u); }} className="w-16 text-center p-1 rounded bg-[var(--color-bg-secondary)] border border-[var(--color-border-default)] text-sm" placeholder="90" />
+                                            <span className="text-xs text-[var(--color-text-muted)]">s</span>
+                                        </div>
+                                    </div>
+                                    <input
+                                        type="text"
+                                        value={ex.notes || ''}
+                                        onChange={(e) => { const u = [...templateExercises]; u[i] = { ...u[i], notes: e.target.value || undefined }; setTemplateExercises(u); }}
+                                        placeholder="Notas (opcional)..."
+                                        className="w-full p-1.5 rounded bg-[var(--color-bg-secondary)] border border-[var(--color-border-default)] text-sm text-[var(--color-text-muted)]"
+                                    />
                                 </div>
                             ))}
                         </div>

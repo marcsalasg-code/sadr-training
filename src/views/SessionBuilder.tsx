@@ -206,6 +206,25 @@ export function SessionBuilder() {
                                         athleteName={getAthleteName(session.athleteId)}
                                         onClick={() => navigate(`/sessions/live/${session.id}`)}
                                         onDelete={() => deleteSession(session.id)}
+                                        onDuplicate={() => {
+                                            addSession({
+                                                name: `${session.name} (copia)`,
+                                                athleteId: session.athleteId,
+                                                status: 'planned',
+                                                exercises: session.exercises.map(ex => ({
+                                                    ...ex,
+                                                    id: crypto.randomUUID(),
+                                                    sets: ex.sets.map(s => ({
+                                                        ...s,
+                                                        id: crypto.randomUUID(),
+                                                        isCompleted: false,
+                                                        completedAt: undefined,
+                                                        actualWeight: s.targetWeight,
+                                                        actualReps: s.targetReps,
+                                                    })),
+                                                })),
+                                            });
+                                        }}
                                     />
                                 ))}
                             </div>
@@ -300,9 +319,10 @@ interface SessionCardProps {
     athleteName: string;
     onClick: () => void;
     onDelete: () => void;
+    onDuplicate?: () => void;
 }
 
-function SessionCard({ session, athleteName, onClick, onDelete }: SessionCardProps) {
+function SessionCard({ session, athleteName, onClick, onDelete, onDuplicate }: SessionCardProps) {
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
     const statusConfig = {
@@ -356,18 +376,27 @@ function SessionCard({ session, athleteName, onClick, onDelete }: SessionCardPro
                     </p>
                 )}
 
-                {/* Delete button */}
-                <button
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        setShowDeleteConfirm(true);
-                    }}
-                    className="absolute top-4 right-4 p-2 rounded-lg bg-[var(--color-bg-elevated)] text-[var(--color-text-muted)] opacity-0 group-hover:opacity-100 hover:text-red-400 hover:bg-red-500/10 transition-all"
-                >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                </button>
+                {/* Action buttons */}
+                <div className="absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                    {onDuplicate && (
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onDuplicate(); }}
+                            className="p-2 rounded-lg bg-[var(--color-bg-elevated)] text-[var(--color-text-muted)] hover:text-[var(--color-accent-gold)] hover:bg-[var(--color-bg-tertiary)]"
+                            title="Duplicar sesión"
+                        >
+                            📝
+                        </button>
+                    )}
+                    <button
+                        onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(true); }}
+                        className="p-2 rounded-lg bg-[var(--color-bg-elevated)] text-[var(--color-text-muted)] hover:text-red-400 hover:bg-red-500/10"
+                        title="Eliminar sesión"
+                    >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                    </button>
+                </div>
             </Card>
 
             {/* Delete confirmation */}

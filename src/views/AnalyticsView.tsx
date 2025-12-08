@@ -3,11 +3,14 @@
  */
 
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { PageContainer } from '../components/layout';
-import { Card, Select, Tabs, StatCard } from '../components/ui';
+import { Card, Select, Tabs, StatCard, Badge } from '../components/ui';
 import { useSessions, useAthletes, useExercises } from '../store/store';
+import { getSessionLog } from '../utils/sessionLog';
 
 export function AnalyticsView() {
+    const navigate = useNavigate();
     const sessions = useSessions();
     const athletes = useAthletes();
     const exercises = useExercises();
@@ -76,6 +79,33 @@ export function AnalyticsView() {
             .sort((a, b) => b.volume - a.volume)
             .slice(0, 5);
     }, [filteredSessions, exercises]);
+
+    // Historial de sesiones usando el helper
+    const sessionLog = useMemo(() => {
+        // Calcular fecha de corte según timeRange
+        let fromDate: string | undefined;
+        const now = new Date();
+        if (timeRange === 'week') {
+            const cutoff = new Date(now);
+            cutoff.setDate(cutoff.getDate() - 7);
+            fromDate = cutoff.toISOString();
+        } else if (timeRange === 'month') {
+            const cutoff = new Date(now);
+            cutoff.setMonth(cutoff.getMonth() - 1);
+            fromDate = cutoff.toISOString();
+        } else if (timeRange === '3months') {
+            const cutoff = new Date(now);
+            cutoff.setMonth(cutoff.getMonth() - 3);
+            fromDate = cutoff.toISOString();
+        }
+        // 'all' = sin fromDate
+
+        return getSessionLog(sessions, athletes, {
+            athleteId: selectedAthlete === 'all' ? null : selectedAthlete,
+            statuses: ['completed'],
+            fromDate,
+        });
+    }, [sessions, athletes, selectedAthlete, timeRange]);
 
     // Max volumen
     const maxWeekVolume = weeklyVolume.length > 0 ? Math.max(...weeklyVolume.map(([, v]) => v)) : 1;
@@ -219,6 +249,69 @@ export function AnalyticsView() {
                             <p className="text-center text-[var(--color-text-muted)] py-8">Sin atletas registrados</p>
                         </Card>
                     )}
+                </div>
+            ),
+        },
+        {
+            id: 'history',
+            label: 'Historial',
+            icon: '📜',
+            content: (
+                <div className="space-y-4">
+                    <Card>
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-semibold">📜 Historial de Sesiones</h3>
+                            <span className="text-sm text-[var(--color-text-muted)]">
+                                {sessionLog.length} sesiones completadas
+                            </span>
+                        </div>
+
+                        {sessionLog.length === 0 ? (
+                            <p className="text-center text-[var(--color-text-muted)] py-8">
+                                Sin sesiones completadas en el período seleccionado
+                            </p>
+                        ) : (
+                            <div className="space-y-2">
+                                {sessionLog.map(entry => (
+                                    <div
+                                        key={entry.id}
+                                        className="flex items-center justify-between p-3 rounded-lg bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg-elevated)] transition-colors cursor-pointer"
+                                        onClick={() => navigate(`/sessions/live/${entry.id}`)}
+                                    >
+                                        <div className="flex items-center gap-4 min-w-0 flex-1">
+                                            {/* Fecha */}
+                                            <div className="w-24 shrink-0">
+                                                <p className="text-sm font-medium">{entry.dateFormatted.split(',')[0]}</p>
+                                                <p className="text-xs text-[var(--color-text-muted)]">{entry.dateFormatted.split(',')[1]}</p>
+                                            </div>
+
+                                            {/* Info sesión */}
+                                            <div className="min-w-0 flex-1">
+                                                <p className="font-medium truncate">{entry.sessionName}</p>
+                                                <p className="text-sm text-[var(--color-text-muted)]">{entry.athleteName}</p>
+                                            </div>
+                                        </div>
+
+                                        {/* Métricas */}
+                                        <div className="flex items-center gap-4 shrink-0">
+                                            <div className="text-right">
+                                                <p className="text-sm font-bold text-[var(--color-accent-beige)]">
+                                                    {entry.volume > 1000 ? `${(entry.volume / 1000).toFixed(1)}k` : entry.volume} kg
+                                                </p>
+                                                <p className="text-xs text-[var(--color-text-muted)]">{entry.setsCompleted} series</p>
+                                            </div>
+                                            {entry.duration > 0 && (
+                                                <div className="text-right">
+                                                    <p className="text-sm text-[var(--color-text-secondary)]">{entry.duration} min</p>
+                                                </div>
+                                            )}
+                                            <Badge size="sm" variant="success">Completada</Badge>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </Card>
                 </div>
             ),
         },

@@ -1,21 +1,24 @@
 /**
  * LiveSession - Vista de sesión en vivo
  * Registro de series en tiempo real con cronómetro de descanso
+ * Incluye sugerencias de carga IA
  */
 
 import { useState, useMemo, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { PageContainer } from '../components/layout';
-import { Card, Button, Badge, EmptyState, Modal } from '../components/ui';
-import { useTrainingStore, useSettings, useExercises } from '../store/store';
+import { Card, Button, Badge, Modal, EmptyState } from '../components/ui';
+import { SetRow, AddExerciseModal } from '../components/session';
+import { useTrainingStore, useSettings, useExercises, useSessions } from '../store/store';
 import { useRestTimer, formatTime } from '../hooks';
 import type { SetEntry, ExerciseEntry } from '../types/types';
 
 export function LiveSession() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
-    const { getSession, updateSession, getExercise } = useTrainingStore();
+    const { getSession, updateSession, getExercise, addExercise } = useTrainingStore();
     const exercises = useExercises();
+    const allSessions = useSessions();
     const settings = useSettings();
 
     const session = getSession(id || '');
@@ -24,6 +27,9 @@ export function LiveSession() {
     const [activeExerciseIndex, setActiveExerciseIndex] = useState(0);
     const [showAddExerciseModal, setShowAddExerciseModal] = useState(false);
     const [showFinishModal, setShowFinishModal] = useState(false);
+    const [showRemoveExerciseModal, setShowRemoveExerciseModal] = useState(false);
+    const [showCancelModal, setShowCancelModal] = useState(false);
+    const [showExitModal, setShowExitModal] = useState(false);
     const [sessionStartTime] = useState(() => session?.startedAt ? new Date(session.startedAt) : new Date());
 
     // Iniciar sesión si no está iniciada
@@ -56,6 +62,34 @@ export function LiveSession() {
 
         return { totalSets, completedSets, totalVolume };
     }, [session]);
+
+    // Historial del ejercicio actual para predicciones IA
+    const exerciseHistory = useMemo(() => {
+        if (!session) return [];
+        const activeExercise = session.exercises[activeExerciseIndex];
+        if (!activeExercise) return [];
+
+        // Buscar sets completados anteriormente para este ejercicio
+        const history: Array<{ weight: number; reps: number; date: string }> = [];
+
+        allSessions
+            .filter(s => s.id !== session.id && s.athleteId === session.athleteId && s.status === 'completed')
+            .forEach(s => {
+                s.exercises.forEach(ex => {
+                    if (ex.exerciseId === activeExercise.exerciseId) {
+                        ex.sets.filter(set => set.isCompleted).forEach(set => {
+                            history.push({
+                                weight: set.actualWeight || 0,
+                                reps: set.actualReps || 0,
+                                date: s.completedAt || s.createdAt,
+                            });
+                        });
+                    }
+                });
+            });
+
+        return history.slice(-10); // Últimos 10 sets
+    }, [session, activeExerciseIndex, allSessions]);
 
     if (!session) {
         return (
@@ -116,6 +150,35 @@ export function LiveSession() {
         updateSession(session.id, { exercises: updatedExercises });
     };
 
+    // Eliminar serie de un ejercicio
+    const handleRemoveSet = (exerciseIndex: number, setIndex: number) => {
+        const updatedExercises = [...session.exercises];
+        const exercise = updatedExercises[exerciseIndex];
+
+        // No permitir eliminar la última serie
+        if (exercise.sets.length <= 1) return;
+
+        // Filtrar la serie y renumerar
+        exercise.sets = exercise.sets
+            .filter((_, i) => i !== setIndex)
+            .map((set, i) => ({ ...set, setNumber: i + 1 }));
+
+        updateSession(session.id, { exercises: updatedExercises });
+    };
+
+    // Desmarcar serie completada (undo)
+    const handleUncompleteSet = (exerciseIndex: number, setIndex: number) => {
+        const updatedExercises = [...session.exercises];
+        updatedExercises[exerciseIndex].sets[setIndex] = {
+            ...updatedExercises[exerciseIndex].sets[setIndex],
+            isCompleted: false,
+            completedAt: undefined,
+            actualWeight: undefined,
+            actualReps: undefined,
+        };
+        updateSession(session.id, { exercises: updatedExercises });
+    };
+
     // Añadir ejercicio
     const handleAddExercise = (exerciseId: string) => {
         const newExercise: ExerciseEntry = {
@@ -139,6 +202,24 @@ export function LiveSession() {
         setActiveExerciseIndex(session.exercises.length);
     };
 
+    // Eliminar ejercicio de la sesión
+    const handleRemoveExercise = (exerciseIndex: number) => {
+        const updatedExercises = session.exercises
+            .filter((_, i) => i !== exerciseIndex)
+            .map((ex, i) => ({ ...ex, order: i }));
+
+        updateSession(session.id, { exercises: updatedExercises });
+
+        // Ajustar índice activo
+        if (exerciseIndex <= activeExerciseIndex && activeExerciseIndex > 0) {
+            setActiveExerciseIndex(prev => prev - 1);
+        } else if (updatedExercises.length === 0) {
+            setActiveExerciseIndex(0);
+        }
+
+        setShowRemoveExerciseModal(false);
+    };
+
     // Finalizar sesión
     const handleFinishSession = () => {
         const endTime = new Date();
@@ -158,15 +239,39 @@ export function LiveSession() {
         navigate('/sessions');
     };
 
+    // Cancelar sesión
+    const handleCancelSession = () => {
+        updateSession(session.id, { status: 'cancelled' });
+        navigate('/sessions');
+    };
+
+    // Salir con confirmación
+    const handleExitClick = () => {
+        if (session.status === 'in_progress' && liveStats.completedSets > 0) {
+            setShowExitModal(true);
+        } else {
+            navigate('/sessions');
+        }
+    };
+
     return (
         <PageContainer
             title={session.name}
             subtitle={session.status === 'in_progress' ? '🔴 En curso' : 'Sesión'}
             actions={
                 <div className="flex items-center gap-3">
-                    <Button variant="ghost" onClick={() => navigate('/sessions')}>
+                    <Button variant="ghost" onClick={handleExitClick}>
                         ← Salir
                     </Button>
+                    {session.status === 'in_progress' && (
+                        <Button
+                            variant="ghost"
+                            className="text-red-400 hover:bg-red-400/10"
+                            onClick={() => setShowCancelModal(true)}
+                        >
+                            ✕ Cancelar
+                        </Button>
+                    )}
                     <Button onClick={() => setShowFinishModal(true)}>
                         ✓ Finalizar
                     </Button>
@@ -259,9 +364,20 @@ export function LiveSession() {
                                 </div>
                             )}
                         </div>
-                        <Button variant="ghost" size="sm" onClick={() => handleAddSet(activeExerciseIndex)}>
-                            + Serie
-                        </Button>
+                        <div className="flex items-center gap-2">
+                            <Button variant="ghost" size="sm" onClick={() => handleAddSet(activeExerciseIndex)}>
+                                + Serie
+                            </Button>
+                            {session.exercises.length > 1 && (
+                                <button
+                                    onClick={() => setShowRemoveExerciseModal(true)}
+                                    className="p-2 rounded-lg text-[var(--color-text-muted)] hover:text-red-400 hover:bg-red-400/10 transition-colors"
+                                    title="Quitar ejercicio de la sesión"
+                                >
+                                    🗑️
+                                </button>
+                            )}
+                        </div>
                     </div>
 
                     {/* Sets Table */}
@@ -273,6 +389,14 @@ export function LiveSession() {
                                 setIndex={setIndex}
                                 weightIncrement={settings.weightIncrement}
                                 onComplete={(data) => handleCompleteSet(activeExerciseIndex, setIndex, data)}
+                                onRemove={() => handleRemoveSet(activeExerciseIndex, setIndex)}
+                                onUncomplete={() => handleUncompleteSet(activeExerciseIndex, setIndex)}
+                                canRemove={activeExercise.sets.length > 1}
+                                exerciseId={activeExercise.exerciseId}
+                                exerciseName={exerciseInfo?.name || 'Ejercicio'}
+                                athleteId={session.athleteId}
+                                previousSets={activeExercise.sets.slice(0, setIndex).filter(s => s.isCompleted)}
+                                exerciseHistory={exerciseHistory}
                             />
                         ))}
                     </div>
@@ -292,35 +416,15 @@ export function LiveSession() {
             )}
 
             {/* Modal: Add Exercise */}
-            <Modal
+            <AddExerciseModal
                 isOpen={showAddExerciseModal}
                 onClose={() => setShowAddExerciseModal(false)}
-                title="Añadir Ejercicio"
-                size="md"
-            >
-                {exercises.length === 0 ? (
-                    <EmptyState
-                        icon="📋"
-                        title="Sin ejercicios"
-                        description="No hay ejercicios en la base de datos. Ve a configuración para añadir algunos."
-                    />
-                ) : (
-                    <div className="space-y-2 max-h-96 overflow-y-auto">
-                        {exercises.map(ex => (
-                            <button
-                                key={ex.id}
-                                onClick={() => handleAddExercise(ex.id)}
-                                className="w-full text-left p-3 rounded-lg bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg-elevated)] transition-colors"
-                            >
-                                <p className="font-medium">{ex.name}</p>
-                                <p className="text-sm text-[var(--color-text-muted)]">
-                                    {ex.muscleGroups.join(', ')}
-                                </p>
-                            </button>
-                        ))}
-                    </div>
-                )}
-            </Modal>
+                exercises={exercises}
+                session={session}
+                onAddExercise={handleAddExercise}
+                onCreateExercise={addExercise}
+                getExercise={getExercise}
+            />
 
             {/* Modal: Finish Session */}
             <Modal
@@ -359,100 +463,87 @@ export function LiveSession() {
                     </div>
                 </div>
             </Modal>
-        </PageContainer>
-    );
-}
 
-// Componente: Set Row
-interface SetRowProps {
-    set: SetEntry;
-    setIndex: number;
-    weightIncrement: number;
-    onComplete: (data: Partial<SetEntry>) => void;
-}
-
-function SetRow({ set, setIndex, weightIncrement, onComplete }: SetRowProps) {
-    const [weight, setWeight] = useState(set.actualWeight || set.targetWeight || 0);
-    const [reps, setReps] = useState(set.actualReps || set.targetReps || 0);
-
-    if (set.isCompleted) {
-        return (
-            <div className="flex items-center gap-4 p-3 rounded-lg bg-green-500/10 border border-green-500/30">
-                <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center text-white text-sm font-bold">
-                    ✓
-                </div>
-                <div className="flex-1 grid grid-cols-2 gap-4">
-                    <div>
-                        <span className="text-lg font-bold text-green-400">{set.actualWeight} kg</span>
-                    </div>
-                    <div>
-                        <span className="text-lg font-bold text-green-400">{set.actualReps} reps</span>
-                    </div>
-                </div>
-            </div>
-        );
-    }
-
-    return (
-        <div className="flex items-center gap-4 p-3 rounded-lg bg-[var(--color-bg-tertiary)]">
-            {/* Set number */}
-            <div className="w-8 h-8 rounded-full bg-[var(--color-bg-elevated)] flex items-center justify-center text-sm font-bold text-[var(--color-text-muted)]">
-                {setIndex + 1}
-            </div>
-
-            {/* Weight input with +/- buttons */}
-            <div className="flex items-center gap-1">
-                <button
-                    onClick={() => setWeight(w => Math.max(0, w - weightIncrement))}
-                    className="w-8 h-8 rounded bg-[var(--color-bg-elevated)] text-[var(--color-text-muted)] hover:text-white"
-                >
-                    −
-                </button>
-                <input
-                    type="number"
-                    value={weight}
-                    onChange={(e) => setWeight(Number(e.target.value))}
-                    className="w-20 text-center p-2 rounded bg-[var(--color-bg-secondary)] border border-[var(--color-border-default)] text-[var(--color-accent-beige)] font-bold"
-                />
-                <button
-                    onClick={() => setWeight(w => w + weightIncrement)}
-                    className="w-8 h-8 rounded bg-[var(--color-bg-elevated)] text-[var(--color-text-muted)] hover:text-white"
-                >
-                    +
-                </button>
-                <span className="text-xs text-[var(--color-text-muted)] ml-1">kg</span>
-            </div>
-
-            {/* Reps input */}
-            <div className="flex items-center gap-1">
-                <button
-                    onClick={() => setReps(r => Math.max(0, r - 1))}
-                    className="w-8 h-8 rounded bg-[var(--color-bg-elevated)] text-[var(--color-text-muted)] hover:text-white"
-                >
-                    −
-                </button>
-                <input
-                    type="number"
-                    value={reps}
-                    onChange={(e) => setReps(Number(e.target.value))}
-                    className="w-16 text-center p-2 rounded bg-[var(--color-bg-secondary)] border border-[var(--color-border-default)] text-[var(--color-accent-beige)] font-bold"
-                />
-                <button
-                    onClick={() => setReps(r => r + 1)}
-                    className="w-8 h-8 rounded bg-[var(--color-bg-elevated)] text-[var(--color-text-muted)] hover:text-white"
-                >
-                    +
-                </button>
-                <span className="text-xs text-[var(--color-text-muted)] ml-1">reps</span>
-            </div>
-
-            {/* Complete button */}
-            <Button
+            {/* Modal: Remove Exercise Confirmation */}
+            <Modal
+                isOpen={showRemoveExerciseModal}
+                onClose={() => setShowRemoveExerciseModal(false)}
+                title="Quitar Ejercicio"
                 size="sm"
-                onClick={() => onComplete({ actualWeight: weight, actualReps: reps })}
+                footer={
+                    <>
+                        <Button variant="ghost" onClick={() => setShowRemoveExerciseModal(false)}>
+                            Cancelar
+                        </Button>
+                        <Button
+                            className="bg-red-600 hover:bg-red-700"
+                            onClick={() => handleRemoveExercise(activeExerciseIndex)}
+                        >
+                            Quitar
+                        </Button>
+                    </>
+                }
             >
-                ✓
-            </Button>
-        </div>
+                <p className="text-[var(--color-text-secondary)]">
+                    ¿Quitar el ejercicio <strong>{exerciseInfo?.name || 'seleccionado'}</strong> de esta sesión?
+                </p>
+                <p className="text-sm text-[var(--color-text-muted)] mt-2">
+                    Se eliminarán todas las series de este ejercicio.
+                </p>
+            </Modal>
+
+            {/* Modal: Cancel Session Confirmation */}
+            <Modal
+                isOpen={showCancelModal}
+                onClose={() => setShowCancelModal(false)}
+                title="Cancelar Sesión"
+                size="sm"
+                footer={
+                    <>
+                        <Button variant="ghost" onClick={() => setShowCancelModal(false)}>
+                            Volver
+                        </Button>
+                        <Button
+                            className="bg-red-600 hover:bg-red-700"
+                            onClick={handleCancelSession}
+                        >
+                            Sí, cancelar sesión
+                        </Button>
+                    </>
+                }
+            >
+                <p className="text-[var(--color-text-secondary)]">
+                    ¿Cancelar la sesión <strong>"{session.name}"</strong>?
+                </p>
+                <p className="text-sm text-[var(--color-text-muted)] mt-2">
+                    La sesión se marcará como cancelada. Podrás verla en el historial pero no contará para estadísticas.
+                </p>
+            </Modal>
+
+            {/* Modal: Exit Confirmation */}
+            <Modal
+                isOpen={showExitModal}
+                onClose={() => setShowExitModal(false)}
+                title="Salir de la Sesión"
+                size="sm"
+                footer={
+                    <>
+                        <Button variant="ghost" onClick={() => setShowExitModal(false)}>
+                            Continuar entrenando
+                        </Button>
+                        <Button onClick={() => navigate('/sessions')}>
+                            Salir sin finalizar
+                        </Button>
+                    </>
+                }
+            >
+                <p className="text-[var(--color-text-secondary)]">
+                    Tienes <strong>{liveStats.completedSets} series</strong> completadas sin finalizar.
+                </p>
+                <p className="text-sm text-[var(--color-text-muted)] mt-2">
+                    Si sales, la sesión permanecerá en estado "en curso". Puedes volver a entrar después.
+                </p>
+            </Modal>
+        </PageContainer>
     );
 }

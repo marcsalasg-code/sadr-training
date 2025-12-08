@@ -14,7 +14,10 @@ export function SettingsView() {
 
     const [showResetModal, setShowResetModal] = useState(false);
     const [showClearDataModal, setShowClearDataModal] = useState(false);
+    const [showImportConfirmModal, setShowImportConfirmModal] = useState(false);
+    const [pendingImportFile, setPendingImportFile] = useState<File | null>(null);
     const [importError, setImportError] = useState<string | null>(null);
+    const [importSuccess, setImportSuccess] = useState<string | null>(null);
 
     // Handlers para settings
     const handleSettingChange = <K extends keyof typeof settings>(
@@ -36,23 +39,45 @@ export function SettingsView() {
         URL.revokeObjectURL(url);
     };
 
-    // Import data
-    const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Import data - Paso 1: Seleccionar archivo y pedir confirmación
+    const handleImportSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
+
+        setPendingImportFile(file);
+        setShowImportConfirmModal(true);
+        e.target.value = ''; // Reset input
+    };
+
+    // Import data - Paso 2: Confirmar e importar
+    const handleImportConfirm = () => {
+        if (!pendingImportFile) return;
 
         const reader = new FileReader();
         reader.onload = (event) => {
             const content = event.target?.result as string;
             const success = importData(content);
+
             if (!success) {
                 setImportError('Error al importar los datos. Verifica que el archivo sea válido.');
+                setImportSuccess(null);
             } else {
                 setImportError(null);
+                setImportSuccess('✓ Datos importados correctamente');
+                // Auto-ocultar después de 5 segundos
+                setTimeout(() => setImportSuccess(null), 5000);
             }
         };
-        reader.readAsText(file);
-        e.target.value = ''; // Reset input
+        reader.readAsText(pendingImportFile);
+
+        setPendingImportFile(null);
+        setShowImportConfirmModal(false);
+    };
+
+    // Cancelar importación
+    const handleImportCancel = () => {
+        setPendingImportFile(null);
+        setShowImportConfirmModal(false);
     };
 
     const tabs = [
@@ -218,11 +243,14 @@ export function SettingsView() {
                                 <input
                                     type="file"
                                     accept=".json"
-                                    onChange={handleImport}
+                                    onChange={handleImportSelect}
                                     className="sr-only"
                                 />
                             </label>
                         </div>
+                        {importSuccess && (
+                            <p className="mt-3 text-sm text-green-400">{importSuccess}</p>
+                        )}
                         {importError && (
                             <p className="mt-3 text-sm text-red-400">{importError}</p>
                         )}
@@ -316,6 +344,17 @@ export function SettingsView() {
                 title="Borrar Todos los Datos"
                 message="⚠️ Esta acción eliminará TODOS tus datos: atletas, sesiones, plantillas, ejercicios y configuración. Esta acción es IRREVERSIBLE."
                 confirmText="Sí, borrar todo"
+                isDestructive
+            />
+
+            {/* Modal: Confirmar Import */}
+            <ConfirmModal
+                isOpen={showImportConfirmModal}
+                onClose={handleImportCancel}
+                onConfirm={handleImportConfirm}
+                title="Importar Datos"
+                message="⚠️ Esto reemplazará TODOS los datos actuales (atletas, sesiones, plantillas, ejercicios y configuración) con los del archivo seleccionado. ¿Deseas continuar?"
+                confirmText="Sí, importar"
                 isDestructive
             />
         </PageContainer>

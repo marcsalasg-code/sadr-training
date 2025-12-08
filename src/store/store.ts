@@ -305,6 +305,23 @@ export const useTrainingStore = create<TrainingStore>()(
             // === DATA MANAGEMENT ===
             exportData: () => {
                 const state = get();
+
+                // Obtener aiSettings del aiStore (sin apiKey por seguridad)
+                let aiSettings: Record<string, unknown> | undefined;
+                try {
+                    const aiStoreData = localStorage.getItem('ai-settings-storage');
+                    if (aiStoreData) {
+                        const parsed = JSON.parse(aiStoreData);
+                        if (parsed?.state) {
+                            // Excluir apiKey por seguridad
+                            const { apiKey, ...safeAiSettings } = parsed.state;
+                            aiSettings = safeAiSettings;
+                        }
+                    }
+                } catch {
+                    // Si falla, simplemente no incluir aiSettings
+                }
+
                 const exportObj = {
                     version: '1.0.0',
                     exportedAt: now(),
@@ -314,6 +331,7 @@ export const useTrainingStore = create<TrainingStore>()(
                     templates: state.templates,
                     settings: state.settings,
                     labEntries: state.labEntries,
+                    aiSettings,
                 };
                 return JSON.stringify(exportObj, null, 2);
             },
@@ -321,19 +339,74 @@ export const useTrainingStore = create<TrainingStore>()(
             importData: (jsonData) => {
                 try {
                     const data = JSON.parse(jsonData);
-                    if (data.version) {
-                        set({
-                            athletes: data.athletes || [],
-                            exercises: data.exercises || [],
-                            sessions: data.sessions || [],
-                            templates: data.templates || [],
-                            settings: { ...defaultSettings, ...data.settings },
-                            labEntries: data.labEntries || [],
-                        });
-                        return true;
+
+                    // === VALIDACIÓN COMPLETA ANTES DE ESCRIBIR ===
+
+                    // 1. Verificar versión
+                    if (!data.version) {
+                        console.error('[Import] Missing version field');
+                        return false;
                     }
-                    return false;
-                } catch {
+
+                    // 2. Verificar que las propiedades principales existan y sean arrays
+                    const requiredArrays = ['athletes', 'exercises', 'sessions', 'templates'];
+                    for (const key of requiredArrays) {
+                        if (data[key] !== undefined && !Array.isArray(data[key])) {
+                            console.error(`[Import] Invalid ${key}: expected array`);
+                            return false;
+                        }
+                    }
+
+                    // 3. Verificar settings si existe
+                    if (data.settings !== undefined && typeof data.settings !== 'object') {
+                        console.error('[Import] Invalid settings: expected object');
+                        return false;
+                    }
+
+                    // 4. Verificar labEntries si existe
+                    if (data.labEntries !== undefined && !Array.isArray(data.labEntries)) {
+                        console.error('[Import] Invalid labEntries: expected array');
+                        return false;
+                    }
+
+                    // === VALIDACIÓN PASADA: AHORA ESCRIBIR ===
+
+                    set({
+                        athletes: data.athletes || [],
+                        exercises: data.exercises || [],
+                        sessions: data.sessions || [],
+                        templates: data.templates || [],
+                        settings: { ...defaultSettings, ...data.settings },
+                        labEntries: data.labEntries || [],
+                    });
+
+                    // Importar aiSettings si existen (sin sobrescribir apiKey actual)
+                    if (data.aiSettings && typeof data.aiSettings === 'object') {
+                        try {
+                            const currentAiStore = localStorage.getItem('ai-settings-storage');
+                            const currentParsed = currentAiStore ? JSON.parse(currentAiStore) : { state: {} };
+                            const currentApiKey = currentParsed?.state?.apiKey;
+
+                            // Merge aiSettings preservando apiKey actual
+                            const newAiState = {
+                                ...currentParsed.state,
+                                ...data.aiSettings,
+                                apiKey: currentApiKey, // Preservar apiKey actual
+                            };
+
+                            localStorage.setItem('ai-settings-storage', JSON.stringify({
+                                ...currentParsed,
+                                state: newAiState,
+                            }));
+                        } catch (e) {
+                            console.warn('[Import] Failed to import aiSettings:', e);
+                            // No fallar el import completo por esto
+                        }
+                    }
+
+                    return true;
+                } catch (e) {
+                    console.error('[Import] Parse error:', e);
                     return false;
                 }
             },

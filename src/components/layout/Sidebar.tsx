@@ -15,6 +15,7 @@ const navItems: NavItem[] = [
     { path: '/athletes', label: 'Atletas', icon: '👥' },
     { path: '/sessions', label: 'Sesiones', icon: '🏋️' },
     { path: '/templates', label: 'Plantillas', icon: '📋' },
+    { path: '/exercises', label: 'Ejercicios', icon: '💪' },
     { path: '/calendar', label: 'Calendario', icon: '📅' },
     { path: '/analytics', label: 'Análisis', icon: '📈' },
     { path: '/lab', label: 'Lab', icon: '🔬' },

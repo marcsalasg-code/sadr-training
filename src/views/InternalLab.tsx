@@ -2,15 +2,32 @@
  * InternalLab - Consola interna de desarrollo y configuración
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { PageContainer } from '../components/layout';
 import { Card, Button, Input, Tabs, Badge } from '../components/ui';
 import { useTrainingStore, useSettings } from '../store/store';
+import { useAIStore, useAISettings, useAILogs, useAITest, type ProviderType } from '../ai';
 import type { LabEntry } from '../types/types';
+
 
 export function InternalLab() {
     const { updateSettings, sessions, athletes, exercises, templates, clearAllData, exportData } = useTrainingStore();
     const currentSettings = useSettings();
+
+    // AI State
+    const aiSettings = useAISettings();
+    const aiLogs = useAILogs();
+    const { updateSettings: updateAISettings, clearLogs, initialize: initAI, setProvider, setEnabled: setAIEnabled } = useAIStore();
+    const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
+
+    // AI Test hook
+    const { runTest: runAITest, isRunning: isAITestRunning, result: aiTestResult, clearResult: clearAITestResult } = useAITest();
+
+
+    // Inicializar AI al montar
+    useEffect(() => {
+        initAI();
+    }, [initAI]);
 
     const [feedbackText, setFeedbackText] = useState('');
     const [feedbackType, setFeedbackType] = useState<'bug' | 'feature' | 'note'>('note');
@@ -62,7 +79,234 @@ export function InternalLab() {
         localStorage.setItem('sadr-lab-entries', JSON.stringify(updated));
     };
 
+    // Test AI Connection
+    const handleTestConnection = async () => {
+        setTestStatus('testing');
+        try {
+            const { AIEngine } = await import('../ai');
+            const result = await AIEngine.testConnection();
+            setTestStatus(result ? 'success' : 'error');
+            setTimeout(() => setTestStatus('idle'), 3000);
+        } catch {
+            setTestStatus('error');
+            setTimeout(() => setTestStatus('idle'), 3000);
+        }
+    };
+
     const tabs = [
+        {
+            id: 'ai',
+            label: 'IA Engine',
+            icon: '🤖',
+            content: (
+                <div className="space-y-6">
+                    {/* Estado General */}
+                    <Card>
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-semibold">Motor de IA</h3>
+                            <Badge variant={aiSettings.isEnabled ? 'success' : 'default'}>
+                                {aiSettings.isEnabled ? '● Activo' : '○ Inactivo'}
+                            </Badge>
+                        </div>
+
+                        <div className="space-y-4">
+                            {/* Toggle principal */}
+                            <label className="flex items-center justify-between p-3 rounded-lg bg-[var(--color-bg-tertiary)]">
+                                <div>
+                                    <span className="font-medium">Habilitar IA</span>
+                                    <p className="text-xs text-[var(--color-text-muted)]">Activa todas las funciones de inteligencia artificial</p>
+                                </div>
+                                <input
+                                    type="checkbox"
+                                    checked={aiSettings.isEnabled}
+                                    onChange={(e) => setAIEnabled(e.target.checked)}
+                                    className="toggle scale-125"
+                                />
+                            </label>
+
+                            {/* Selector de Provider */}
+                            <div className="p-3 rounded-lg bg-[var(--color-bg-tertiary)]">
+                                <label className="block mb-2 font-medium">Provider</label>
+                                <div className="flex gap-2">
+                                    {(['mock', 'remote'] as ProviderType[]).map(p => (
+                                        <button
+                                            key={p}
+                                            onClick={() => setProvider(p)}
+                                            className={`flex-1 py-2 px-4 rounded-lg text-sm transition-colors ${aiSettings.provider === p
+                                                ? 'bg-[var(--color-accent-gold)] text-black font-medium'
+                                                : 'bg-[var(--color-bg-elevated)] hover:bg-[var(--color-bg-elevated)]/80'
+                                                }`}
+                                        >
+                                            {p === 'mock' ? '🔧 Mock (Local)' : '☁️ Remoto (API)'}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </Card>
+
+                    {/* Configuración Remota */}
+                    {aiSettings.provider === 'remote' && (
+                        <Card>
+                            <h3 className="text-lg font-semibold mb-4">Configuración API Remota</h3>
+                            <div className="space-y-4">
+                                <Input
+                                    label="URL del API"
+                                    value={aiSettings.apiUrl}
+                                    onChange={(e) => updateAISettings({ apiUrl: e.target.value })}
+                                    placeholder="https://api.openai.com/v1/chat/completions"
+                                />
+                                <Input
+                                    label="API Key"
+                                    type="password"
+                                    value={aiSettings.apiKey}
+                                    onChange={(e) => updateAISettings({ apiKey: e.target.value })}
+                                    placeholder="sk-..."
+                                />
+                                <Input
+                                    label="Modelo"
+                                    value={aiSettings.model}
+                                    onChange={(e) => updateAISettings({ model: e.target.value })}
+                                    placeholder="gpt-4o-mini"
+                                />
+                                <Button
+                                    onClick={handleTestConnection}
+                                    disabled={testStatus === 'testing' || !aiSettings.apiKey}
+                                    className={testStatus === 'success' ? 'bg-green-600' : testStatus === 'error' ? 'bg-red-600' : ''}
+                                >
+                                    {testStatus === 'testing' ? '⏳ Probando...' :
+                                        testStatus === 'success' ? '✓ Conexión OK' :
+                                            testStatus === 'error' ? '✗ Error' : 'Probar Conexión'}
+                                </Button>
+                            </div>
+                        </Card>
+                    )}
+
+                    {/* Features IA */}
+                    <Card>
+                        <h3 className="text-lg font-semibold mb-4">Funciones IA</h3>
+                        <div className="space-y-3">
+                            <label className="flex items-center justify-between p-3 rounded-lg bg-[var(--color-bg-tertiary)]">
+                                <div>
+                                    <span className="font-medium">📋 Generador de Plantillas</span>
+                                    <p className="text-xs text-[var(--color-text-muted)]">Crear plantillas desde descripción natural</p>
+                                </div>
+                                <input
+                                    type="checkbox"
+                                    checked={aiSettings.templateGeneration}
+                                    onChange={() => updateAISettings({ templateGeneration: !aiSettings.templateGeneration })}
+                                    className="toggle"
+                                />
+                            </label>
+                            <label className="flex items-center justify-between p-3 rounded-lg bg-[var(--color-bg-tertiary)]">
+                                <div>
+                                    <span className="font-medium">📊 Predicción de Carga</span>
+                                    <p className="text-xs text-[var(--color-text-muted)]">Sugerencias de peso y repeticiones</p>
+                                </div>
+                                <input
+                                    type="checkbox"
+                                    checked={aiSettings.loadPrediction}
+                                    onChange={() => updateAISettings({ loadPrediction: !aiSettings.loadPrediction })}
+                                    className="toggle"
+                                />
+                            </label>
+                            <label className="flex items-center justify-between p-3 rounded-lg bg-[var(--color-bg-tertiary)]">
+                                <div>
+                                    <span className="font-medium">💡 Sugerencias Automáticas</span>
+                                    <p className="text-xs text-[var(--color-text-muted)]">Mostrar sugerencias proactivamente</p>
+                                </div>
+                                <input
+                                    type="checkbox"
+                                    checked={aiSettings.autoSuggestions}
+                                    onChange={() => updateAISettings({ autoSuggestions: !aiSettings.autoSuggestions })}
+                                    className="toggle"
+                                />
+                            </label>
+                        </div>
+                    </Card>
+
+                    {/* Logs */}
+                    <Card>
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-semibold">Logs IA ({aiLogs.length})</h3>
+                            <Button variant="ghost" size="sm" onClick={clearLogs}>Limpiar</Button>
+                        </div>
+                        {aiLogs.length === 0 ? (
+                            <p className="text-center text-[var(--color-text-muted)] py-4">Sin logs de IA</p>
+                        ) : (
+                            <div className="space-y-2 max-h-48 overflow-y-auto">
+                                {aiLogs.slice(-20).reverse().map(log => (
+                                    <div key={log.id} className={`p-2 rounded text-xs ${log.success ? 'bg-green-900/20' : 'bg-red-900/20'}`}>
+                                        <div className="flex justify-between">
+                                            <span className="font-mono">{log.requestType}</span>
+                                            <span className="text-[var(--color-text-muted)]">
+                                                {new Date(log.timestamp).toLocaleTimeString()}
+                                            </span>
+                                        </div>
+                                        {log.details && <p className="text-[var(--color-text-muted)] mt-1">{log.details}</p>}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </Card>
+
+                    {/* Test IA (Mock) */}
+                    <Card>
+                        <h3 className="text-lg font-semibold mb-4">🧪 Test IA (Mock)</h3>
+                        <p className="text-sm text-[var(--color-text-muted)] mb-4">
+                            Prueba el flujo completo: Botón → AIEngine → MockProvider → Respuesta
+                        </p>
+
+                        <div className="flex gap-2 mb-4">
+                            <Button
+                                onClick={runAITest}
+                                disabled={isAITestRunning || !aiSettings.isEnabled}
+                            >
+                                {isAITestRunning ? '⏳ Ejecutando...' : '🧪 Test IA (Mock)'}
+                            </Button>
+                            {aiTestResult && (
+                                <Button variant="ghost" size="sm" onClick={clearAITestResult}>
+                                    Limpiar
+                                </Button>
+                            )}
+                        </div>
+
+                        {!aiSettings.isEnabled && (
+                            <div className="p-3 rounded-lg bg-yellow-900/20 border border-yellow-500/30 text-yellow-400 text-sm mb-4">
+                                ⚠️ La IA está desactivada. Actívala arriba para probar.
+                            </div>
+                        )}
+
+                        {aiTestResult && (
+                            <div className={`p-4 rounded-lg border ${aiTestResult.success
+                                    ? 'bg-green-900/20 border-green-500/30'
+                                    : 'bg-red-900/20 border-red-500/30'
+                                }`}>
+                                <div className="flex items-center justify-between mb-2">
+                                    <span className={`font-bold ${aiTestResult.success ? 'text-green-400' : 'text-red-400'}`}>
+                                        {aiTestResult.success ? '✅ IA mock OK' : '❌ Error'}
+                                    </span>
+                                    <span className="text-xs text-[var(--color-text-muted)]">
+                                        {aiTestResult.duration}ms | Provider: {aiTestResult.provider || 'unknown'}
+                                    </span>
+                                </div>
+
+                                {aiTestResult.success && aiTestResult.data ? (
+                                    <div className="mt-2">
+                                        <p className="text-xs text-[var(--color-text-muted)] mb-1">Respuesta (JSON):</p>
+                                        <pre className="text-xs bg-[var(--color-bg-primary)] p-2 rounded overflow-x-auto max-h-40 overflow-y-auto">
+                                            {JSON.stringify(aiTestResult.data, null, 2)}
+                                        </pre>
+                                    </div>
+                                ) : aiTestResult.error ? (
+                                    <p className="text-sm text-red-300 mt-2">{aiTestResult.error}</p>
+                                ) : null}
+                            </div>
+                        )}
+                    </Card>
+                </div>
+            ),
+        },
         {
             id: 'params',
             label: 'Parámetros',

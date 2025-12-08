@@ -12,6 +12,7 @@ import {
   SessionBuilder,
   LiveSession,
   TemplatesView,
+  ExercisesView,
   CalendarView,
   AnalyticsView,
   SettingsView,
@@ -34,6 +35,7 @@ function App() {
             <Route path="/sessions" element={<SessionBuilder />} />
             <Route path="/sessions/live/:id" element={<LiveSession />} />
             <Route path="/templates" element={<TemplatesView />} />
+            <Route path="/exercises" element={<ExercisesView />} />
             <Route path="/calendar" element={<CalendarView />} />
             <Route path="/analytics" element={<AnalyticsView />} />
             <Route path="/settings" element={<SettingsView />} />
