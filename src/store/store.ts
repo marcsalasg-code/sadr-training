@@ -6,6 +6,7 @@
  * - Each domain has its own slice file (athletesSlice, sessionsSlice, etc.)
  * - This file combines all slices into a single store with persist middleware
  * - All existing exports are maintained for backward compatibility
+ * - Migrations run on rehydration to normalize legacy data
  */
 
 import { create } from 'zustand';
@@ -20,6 +21,10 @@ import { createPlansSlice, type PlansSlice } from './plansSlice';
 import { createSettingsSlice, defaultSettings, type SettingsSlice } from './settingsSlice';
 import { createLabSlice, type LabSlice } from './labSlice';
 import { createConfigSlice, type ConfigSlice } from './configSlice';
+
+// Import migrations
+import { migrateExerciseCatalog } from '../core/exercises/exercise.migration';
+import { migrateSessions, migrateTemplates } from '../core/sessions/sessionStructure.migration';
 
 // ============================================
 // HELPERS
@@ -231,8 +236,63 @@ export const useTrainingStore = create<TrainingStore>()(
                 activeTrainingPlanId: state.activeTrainingPlanId,
                 anchorConfig: state.anchorConfig,
                 exerciseCategories: state.exerciseCategories,
+                trainingConfig: state.trainingConfig,
                 // Note: usageEvents not persisted to save space
             }),
+            // Run migrations on rehydration
+            onRehydrateStorage: () => (state, error) => {
+                if (error) {
+                    console.error('[Store] Rehydration error:', error);
+                    return;
+                }
+                if (!state) return;
+
+                // Check and run migrations
+                let needsUpdate = false;
+
+                // Migrate exercises to new model (pattern, muscleGroup, tags)
+                if (state.exercises && state.exercises.length > 0) {
+                    const hasLegacyExercises = state.exercises.some(
+                        (ex: { pattern?: string }) => !ex.pattern
+                    );
+                    if (hasLegacyExercises) {
+                        console.log('[Migration] Migrating exercises to new model...');
+                        const migratedExercises = migrateExerciseCatalog(state.exercises);
+                        useTrainingStore.setState({ exercises: migratedExercises as typeof state.exercises });
+                        needsUpdate = true;
+                    }
+                }
+
+                // Migrate sessions to include structure and blockId
+                if (state.sessions && state.sessions.length > 0) {
+                    const hasLegacySessions = state.sessions.some(
+                        (s: { structure?: unknown }) => !s.structure
+                    );
+                    if (hasLegacySessions) {
+                        console.log('[Migration] Migrating sessions to include structure...');
+                        const migratedSessions = migrateSessions(state.sessions);
+                        useTrainingStore.setState({ sessions: migratedSessions });
+                        needsUpdate = true;
+                    }
+                }
+
+                // Migrate templates to include structure
+                if (state.templates && state.templates.length > 0) {
+                    const hasLegacyTemplates = state.templates.some(
+                        (t: { structure?: unknown }) => !t.structure
+                    );
+                    if (hasLegacyTemplates) {
+                        console.log('[Migration] Migrating templates to include structure...');
+                        const migratedTemplates = migrateTemplates(state.templates);
+                        useTrainingStore.setState({ templates: migratedTemplates });
+                        needsUpdate = true;
+                    }
+                }
+
+                if (needsUpdate) {
+                    console.log('[Migration] All migrations completed successfully.');
+                }
+            },
         }
     )
 );

@@ -4,6 +4,10 @@
  */
 
 import type { SessionStructure } from '../core/sessions/sessionStructure.model';
+import type { MovementPattern, MuscleGroup } from '../core/exercises/exercise.model';
+
+// Re-export para backwards compatibility
+export type { MovementPattern, MuscleGroup } from '../core/exercises/exercise.model';
 
 // ============================================
 // IDENTIFICADORES
@@ -104,11 +108,19 @@ export interface OneRMRecord {
 // EJERCICIOS
 // ============================================
 
-export type MuscleGroup =
+/**
+ * @deprecated - Usar MuscleGroup de exercise.model.ts
+ * Solo para migración de datos legacy
+ */
+export type LegacyMuscleGroup =
     | 'chest' | 'back' | 'shoulders' | 'biceps' | 'triceps'
     | 'forearms' | 'core' | 'quads' | 'hamstrings' | 'glutes'
     | 'calves' | 'full_body' | 'cardio';
 
+/**
+ * @deprecated - Usar MovementPattern de exercise.model.ts
+ * Solo para categorización legacy
+ */
 export type ExerciseCategory =
     | 'strength' | 'hypertrophy' | 'power' | 'endurance'
     | 'mobility' | 'cardio' | 'warmup' | 'cooldown';
@@ -120,8 +132,20 @@ export interface Exercise {
     id: UUID;
     name: string;
     description?: string;
-    muscleGroups: MuscleGroup[];
-    category: ExerciseCategory;
+
+    // === NUEVO MODELO UNIFICADO ===
+    pattern: MovementPattern;           // Categoría de movimiento (squat, hinge, push, pull, core, carry, other)
+    muscleGroup: MuscleGroup;           // Grupo muscular principal (legs, chest, back, shoulders, arms, full, other)
+    tags: string[];                     // Tags flexibles: ['compound', 'bilateral', 'barbell']
+    updatedAt: string;
+
+    // === CAMPOS LEGACY (para migración) ===
+    /** @deprecated - Usar muscleGroup singular */
+    muscleGroups?: LegacyMuscleGroup[];
+    /** @deprecated - Usar pattern */
+    category?: ExerciseCategory;
+
+    // === METADATOS ===
     equipment?: string;
     videoUrl?: string;
     imageUrl?: string;

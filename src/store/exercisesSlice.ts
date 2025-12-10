@@ -79,10 +79,16 @@ export const createExercisesSlice: StateCreator<
     anchorConfig: defaultAnchorConfig,
 
     addExercise: (exerciseData) => {
+        const timestamp = now();
         const exercise: Exercise = {
             ...exerciseData,
             id: generateId(),
-            createdAt: now(),
+            createdAt: timestamp,
+            updatedAt: timestamp,
+            // Asegurar valores por defecto para campos requeridos
+            pattern: exerciseData.pattern || 'other',
+            muscleGroup: exerciseData.muscleGroup || 'other',
+            tags: exerciseData.tags || [],
         };
         set((state) => ({ exercises: [...state.exercises, exercise] }));
         return exercise;

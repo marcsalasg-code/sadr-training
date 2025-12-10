@@ -3,6 +3,7 @@
  * Incluye búsqueda, creación de nuevos ejercicios y sugerencias IA
  * 
  * REFACTORED: Uses TrainingConfig for categories instead of hardcoded lists
+ * REFACTORED: Uses new Exercise model with pattern/muscleGroup singular
  */
 
 import { useState, useMemo } from 'react';
@@ -11,8 +12,7 @@ import { AuraEmptyState } from '../ui/aura';
 import { AIQuotaIndicator } from '../common';
 import { useExerciseSuggestions, useAIEnabled } from '../../ai';
 import { useTrainingStore } from '../../store/store';
-import type { Exercise, ExerciseEntry, MuscleGroup, ExerciseCategory } from '../../types/types';
-import type { MuscleGroup as CoreMuscleGroup } from '../../core/exercises/exercise.model';
+import type { Exercise, ExerciseEntry, MuscleGroup, MovementPattern } from '../../types/types';
 
 export interface AddExerciseModalProps {
     isOpen: boolean;
@@ -24,14 +24,6 @@ export interface AddExerciseModalProps {
     getExercise: (id: string) => Exercise | undefined;
 }
 
-// Fallback categories (used when pattern info needed, kept minimal)
-const CATEGORIES: { value: ExerciseCategory; label: string }[] = [
-    { value: 'strength', label: 'Fuerza' },
-    { value: 'hypertrophy', label: 'Hipertrofia' },
-    { value: 'power', label: 'Potencia' },
-    { value: 'endurance', label: 'Resistencia' },
-    { value: 'cardio', label: 'Cardio' },
-];
 
 export function AddExerciseModal({
     isOpen,
@@ -57,8 +49,8 @@ export function AddExerciseModal({
     const [showCreateForm, setShowCreateForm] = useState(false);
     const [newExercise, setNewExercise] = useState({
         name: '',
-        muscleGroup: (muscleGroupOptions[0]?.value || 'chest') as MuscleGroup,
-        category: 'strength' as ExerciseCategory,
+        muscleGroup: (muscleGroupOptions[0]?.value || 'legs') as MuscleGroup,
+        pattern: 'other' as MovementPattern,
     });
 
     // Hook de sugerencias IA
@@ -73,13 +65,28 @@ export function AddExerciseModal({
             .filter((name): name is string => !!name);
     }, [session, getExercise]);
 
+    // Helper: obtener nombre visible del muscleGroup
+    const getMuscleGroupLabel = (ex: Exercise): string => {
+        // Nuevo modelo: muscleGroup singular
+        if (ex.muscleGroup) {
+            const config = trainingConfig.muscleGroups.find(mg => mg.id === ex.muscleGroup);
+            return config?.label || ex.muscleGroup;
+        }
+        // Legacy: muscleGroups array
+        if (ex.muscleGroups && ex.muscleGroups.length > 0) {
+            return ex.muscleGroups.join(', ');
+        }
+        return 'Sin categoría';
+    };
+
     // Filtrar ejercicios por búsqueda
     const filteredExercises = useMemo(() => {
         if (!searchQuery.trim()) return exercises;
         const query = searchQuery.toLowerCase();
         return exercises.filter(ex =>
             ex.name.toLowerCase().includes(query) ||
-            ex.muscleGroups.some(mg => mg.toLowerCase().includes(query))
+            (ex.muscleGroup && ex.muscleGroup.toLowerCase().includes(query)) ||
+            (ex.muscleGroups && ex.muscleGroups.some(mg => mg.toLowerCase().includes(query)))
         );
     }, [exercises, searchQuery]);
 
@@ -87,7 +94,7 @@ export function AddExerciseModal({
     const handleClose = () => {
         setSearchQuery('');
         setShowCreateForm(false);
-        setNewExercise({ name: '', muscleGroup: 'chest', category: 'strength' });
+        setNewExercise({ name: '', muscleGroup: muscleGroupOptions[0]?.value || 'legs', pattern: 'other' });
         clearSuggestions();
         onClose();
     };
@@ -98,9 +105,11 @@ export function AddExerciseModal({
 
         const created = onCreateExercise({
             name: newExercise.name.trim(),
-            muscleGroups: [newExercise.muscleGroup],
-            category: newExercise.category,
+            pattern: newExercise.pattern,
+            muscleGroup: newExercise.muscleGroup,
+            tags: [],
             isCustom: true,
+            updatedAt: new Date().toISOString(),
         });
 
         onAddExercise(created.id);
@@ -122,7 +131,7 @@ export function AddExerciseModal({
     };
 
     // Crear ejercicio desde sugerencia IA
-    const handleCreateFromSuggestion = (suggestion: { name: string; muscleGroup: MuscleGroup; category: ExerciseCategory }) => {
+    const handleCreateFromSuggestion = (suggestion: { name: string; muscleGroup: MuscleGroup }) => {
         // Verificar si ya existe
         const existing = exercises.find(ex => ex.name.toLowerCase() === suggestion.name.toLowerCase());
         if (existing) {
@@ -132,9 +141,11 @@ export function AddExerciseModal({
 
         const created = onCreateExercise({
             name: suggestion.name,
-            muscleGroups: [suggestion.muscleGroup],
-            category: suggestion.category,
+            pattern: 'other',
+            muscleGroup: suggestion.muscleGroup,
+            tags: [],
             isCustom: true,
+            updatedAt: new Date().toISOString(),
         });
 
         onAddExercise(created.id);
@@ -191,9 +202,9 @@ export function AddExerciseModal({
                                 options={muscleGroupOptions}
                             />
                             <Select
-                                value={newExercise.category}
-                                onChange={(e) => setNewExercise(prev => ({ ...prev, category: e.target.value as ExerciseCategory }))}
-                                options={CATEGORIES}
+                                value={newExercise.pattern}
+                                onChange={(e) => setNewExercise(prev => ({ ...prev, pattern: e.target.value as MovementPattern }))}
+                                options={trainingConfig.patterns.filter(p => p.enabled).map(p => ({ value: p.id, label: p.label }))}
                             />
                         </div>
                         <Button
@@ -271,7 +282,7 @@ export function AddExerciseModal({
                                 >
                                     <p className="font-medium">{ex.name}</p>
                                     <p className="text-sm text-[var(--color-text-muted)]">
-                                        {ex.muscleGroups.join(', ')}
+                                        {getMuscleGroupLabel(ex)}
                                     </p>
                                 </button>
                             ))}

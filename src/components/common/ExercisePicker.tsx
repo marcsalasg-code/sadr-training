@@ -212,8 +212,8 @@ export function ExercisePicker({
                                 <button
                                     onClick={() => setSelectedPattern('all')}
                                     className={`px-2 py-1 rounded text-xs transition-colors ${selectedPattern === 'all'
-                                            ? 'bg-[var(--color-accent-gold)] text-black'
-                                            : 'bg-[#1A1A1A] text-gray-400 hover:bg-[#2A2A2A]'
+                                        ? 'bg-[var(--color-accent-gold)] text-black'
+                                        : 'bg-[#1A1A1A] text-gray-400 hover:bg-[#2A2A2A]'
                                         }`}
                                 >
                                     Todos
@@ -223,8 +223,8 @@ export function ExercisePicker({
                                         key={p.id}
                                         onClick={() => setSelectedPattern(p.id)}
                                         className={`px-2 py-1 rounded text-xs transition-colors ${selectedPattern === p.id
-                                                ? 'bg-[var(--color-accent-gold)] text-black'
-                                                : 'bg-[#1A1A1A] text-gray-400 hover:bg-[#2A2A2A]'
+                                            ? 'bg-[var(--color-accent-gold)] text-black'
+                                            : 'bg-[#1A1A1A] text-gray-400 hover:bg-[#2A2A2A]'
                                             }`}
                                     >
                                         {p.icon} {p.label}
@@ -239,8 +239,8 @@ export function ExercisePicker({
                                 <button
                                     onClick={() => setSelectedMuscleGroup('all')}
                                     className={`px-2 py-1 rounded text-xs transition-colors ${selectedMuscleGroup === 'all'
-                                            ? 'bg-purple-600 text-white'
-                                            : 'bg-[#1A1A1A] text-gray-400 hover:bg-[#2A2A2A]'
+                                        ? 'bg-purple-600 text-white'
+                                        : 'bg-[#1A1A1A] text-gray-400 hover:bg-[#2A2A2A]'
                                         }`}
                                 >
                                     Todos
@@ -250,8 +250,8 @@ export function ExercisePicker({
                                         key={m.id}
                                         onClick={() => setSelectedMuscleGroup(m.id)}
                                         className={`px-2 py-1 rounded text-xs transition-colors ${selectedMuscleGroup === m.id
-                                                ? 'bg-purple-600 text-white'
-                                                : 'bg-[#1A1A1A] text-gray-400 hover:bg-[#2A2A2A]'
+                                            ? 'bg-purple-600 text-white'
+                                            : 'bg-[#1A1A1A] text-gray-400 hover:bg-[#2A2A2A]'
                                             }`}
                                     >
                                         {m.icon} {m.label}
@@ -365,12 +365,13 @@ function CreateExerciseModal({ isOpen, onClose, onCreated }: CreateExerciseModal
 
         const newExercise = addExercise({
             name: name.trim(),
-            muscleGroups: [], // Legacy field
-            category: 'strength', // Legacy field
+            pattern: selectedPattern,
+            muscleGroup: selectedMuscleGroup,
+            tags: [],
             isCustom: true,
+            updatedAt: new Date().toISOString(),
         });
 
-        // Note: pattern and muscleGroup will be added after type update
         onCreated(newExercise.id);
     };
 
@@ -414,8 +415,8 @@ function CreateExerciseModal({ isOpen, onClose, onCreated }: CreateExerciseModal
                                 key={p.id}
                                 onClick={() => setSelectedPattern(p.id)}
                                 className={`px-3 py-2 rounded-lg text-sm transition-colors ${selectedPattern === p.id
-                                        ? 'bg-[var(--color-accent-gold)] text-black'
-                                        : 'bg-[#1A1A1A] text-gray-400 hover:bg-[#2A2A2A]'
+                                    ? 'bg-[var(--color-accent-gold)] text-black'
+                                    : 'bg-[#1A1A1A] text-gray-400 hover:bg-[#2A2A2A]'
                                     }`}
                             >
                                 {p.icon} {p.label}
@@ -433,8 +434,8 @@ function CreateExerciseModal({ isOpen, onClose, onCreated }: CreateExerciseModal
                                 key={m.id}
                                 onClick={() => setSelectedMuscleGroup(m.id)}
                                 className={`px-3 py-2 rounded-lg text-sm transition-colors ${selectedMuscleGroup === m.id
-                                        ? 'bg-purple-600 text-white'
-                                        : 'bg-[#1A1A1A] text-gray-400 hover:bg-[#2A2A2A]'
+                                    ? 'bg-purple-600 text-white'
+                                    : 'bg-[#1A1A1A] text-gray-400 hover:bg-[#2A2A2A]'
                                     }`}
                             >
                                 {m.icon} {m.label}
