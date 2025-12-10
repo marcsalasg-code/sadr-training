@@ -1,229 +1,164 @@
 /**
  * CalendarView - Vista de calendario mensual interactivo
  * Muestra sesiones reales, permite filtrar por atleta y crear sesiones
+ * Rediseñado con UI Aura
+ * 
+ * REFACTORED: Usa useCalendarView hook para toda la lógica de negocio (Phase 5)
  */
 
-import { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { PageContainer } from '../components/layout';
-import { Card, Button, Badge, Modal, Input, Select, EmptyState } from '../components/ui';
-import { useTrainingStore, useSessions, useAthletes, useTemplates } from '../store/store';
-import type { WorkoutSession } from '../types/types';
+import { Modal, Input, Select } from '../components/ui';
+import {
+    AuraSection,
+    AuraPanel,
+    AuraButton,
+    AuraBadge,
+    AuraListItem,
+    AuraDivider,
+    AuraEmptyState,
+} from '../components/ui/aura';
+import { DayAgenda } from '../components/calendar';
+import { useCalendarView } from '../hooks';
+import { getDayPlanFor } from '../utils';
 
 export function CalendarView() {
-    const navigate = useNavigate();
-    const sessions = useSessions();
-    const athletes = useAthletes();
-    const templates = useTemplates();
-    const { addSession, getAthlete } = useTrainingStore();
+    const {
+        // Navigation
+        year,
+        month,
+        prevMonth,
+        nextMonth,
+        monthNames,
+        weekDays,
 
-    // Estado del calendario
-    const [currentDate, setCurrentDate] = useState(new Date());
-    const [selectedAthleteId, setSelectedAthleteId] = useState<string>('all');
+        // Calendar data
+        calendarDays,
+        sessionsByDate,
 
-    // Estado del modal de día
-    const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-    const [showCreateForm, setShowCreateForm] = useState(false);
-    const [newSessionName, setNewSessionName] = useState('');
-    const [newSessionAthleteId, setNewSessionAthleteId] = useState('');
-    const [newSessionTemplateId, setNewSessionTemplateId] = useState('');
+        // Filtering
+        selectedAthleteId,
+        setSelectedAthleteId,
+        athleteOptions,
+        athleteOptionsForCreate,
+        templateOptions,
 
-    const year = currentDate.getFullYear();
-    const month = currentDate.getMonth();
+        // Day expansion
+        expandedDate,
+        setExpandedDate,
+        handleDayClick,
 
-    // Filtrar sesiones por atleta
-    const filteredSessions = useMemo(() => {
-        if (selectedAthleteId === 'all') return sessions;
-        return sessions.filter(s => s.athleteId === selectedAthleteId);
-    }, [sessions, selectedAthleteId]);
+        // Modal state
+        selectedDate,
+        showCreateForm,
+        newSessionName,
+        newSessionAthleteId,
+        newSessionTemplateId,
+        setNewSessionName,
+        setNewSessionAthleteId,
+        setNewSessionTemplateId,
 
-    // Generar días del calendario
-    const calendarDays = useMemo(() => {
-        const firstDay = new Date(year, month, 1);
-        const lastDay = new Date(year, month + 1, 0);
-        const daysInMonth = lastDay.getDate();
-        const startWeekday = firstDay.getDay();
+        // Handlers
+        handleOpenCreateModal,
+        handleCloseModal,
+        handleCreateSession,
+        getSessionAction,
 
-        const days: { date: Date | null; isCurrentMonth: boolean }[] = [];
+        // Training plan context
+        activePlan,
+        weeklyAdherence,
+        isTrainingDayForDate,
+        getDayPlanForDate,
 
-        const prevMonthLastDay = new Date(year, month, 0).getDate();
-        for (let i = startWeekday - 1; i >= 0; i--) {
-            days.push({ date: new Date(year, month - 1, prevMonthLastDay - i), isCurrentMonth: false });
-        }
-        for (let i = 1; i <= daysInMonth; i++) {
-            days.push({ date: new Date(year, month, i), isCurrentMonth: true });
-        }
-        const remaining = 42 - days.length;
-        for (let i = 1; i <= remaining; i++) {
-            days.push({ date: new Date(year, month + 1, i), isCurrentMonth: false });
-        }
-        return days;
-    }, [year, month]);
-
-    // Agrupar sesiones por fecha
-    const sessionsByDate = useMemo(() => {
-        const map: Record<string, WorkoutSession[]> = {};
-        filteredSessions.forEach(s => {
-            const dateStr = (s.scheduledDate || s.completedAt || s.createdAt).split('T')[0];
-            if (!map[dateStr]) map[dateStr] = [];
-            map[dateStr].push(s);
-        });
-        return map;
-    }, [filteredSessions]);
-
-    // Navegación del calendario
-    const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
-    const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
-    const goToday = () => setCurrentDate(new Date());
-
-    const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-    const weekDays = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
-    const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
-
-    const today = new Date();
-    const isToday = (date: Date) =>
-        date.getDate() === today.getDate() && date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear();
-
-    const formatDateKey = (date: Date) => date.toISOString().split('T')[0];
-
-    // Opciones para selects
-    const athleteOptions = [
-        { value: 'all', label: 'Todos los atletas' },
-        ...athletes.map(a => ({ value: a.id, label: a.name }))
-    ];
-
-    const athleteOptionsForCreate = [
-        { value: '', label: 'Seleccionar atleta...' },
-        ...athletes.map(a => ({ value: a.id, label: a.name }))
-    ];
-
-    const templateOptions = [
-        { value: '', label: 'Sin plantilla' },
-        ...templates.map(t => ({ value: t.id, label: t.name }))
-    ];
-
-    // Handler: click en día
-    const handleDayClick = (date: Date) => {
-        setSelectedDate(date);
-        setShowCreateForm(false);
-        setNewSessionName('');
-        setNewSessionAthleteId(selectedAthleteId !== 'all' ? selectedAthleteId : '');
-        setNewSessionTemplateId('');
-    };
-
-    // Handler: cerrar modal
-    const handleCloseModal = () => {
-        setSelectedDate(null);
-        setShowCreateForm(false);
-    };
-
-    // Handler: crear sesión
-    const handleCreateSession = () => {
-        if (!newSessionName.trim() || !newSessionAthleteId || !selectedDate) return;
-
-        const selectedTemplate = templates.find(t => t.id === newSessionTemplateId);
-
-        addSession({
-            name: newSessionName.trim(),
-            athleteId: newSessionAthleteId,
-            templateId: newSessionTemplateId || undefined,
-            scheduledDate: formatDateKey(selectedDate),
-            status: 'planned',
-            exercises: selectedTemplate?.exercises.map((ex, idx) => ({
-                id: crypto.randomUUID(),
-                exerciseId: ex.exerciseId,
-                order: idx,
-                sets: Array.from({ length: ex.sets }, (_, i) => ({
-                    id: crypto.randomUUID(),
-                    setNumber: i + 1,
-                    type: 'working' as const,
-                    targetReps: ex.reps,
-                    targetWeight: undefined,
-                    restSeconds: ex.restSeconds,
-                    isCompleted: false,
-                })),
-            })) || [],
-        });
-
-        setShowCreateForm(false);
-        setNewSessionName('');
-        setNewSessionAthleteId('');
-        setNewSessionTemplateId('');
-    };
-
-    // Handler: acción de sesión según estado
-    const getSessionAction = (session: WorkoutSession): { label: string; onClick: () => void } => {
-        switch (session.status) {
-            case 'planned':
-                return { label: 'Iniciar', onClick: () => navigate(`/sessions/live/${session.id}`) };
-            case 'in_progress':
-                return { label: 'Continuar', onClick: () => navigate(`/sessions/live/${session.id}`) };
-            case 'completed':
-                return { label: 'Ver resumen', onClick: () => navigate(`/sessions/live/${session.id}`) };
-            case 'cancelled':
-            default:
-                return { label: 'Ver', onClick: () => navigate(`/sessions/live/${session.id}`) };
-        }
-    };
-
-    // Formato de fecha para modal
-    const formatModalDate = (date: Date): string => {
-        const dayName = dayNames[date.getDay()];
-        const day = date.getDate();
-        const monthName = monthNames[date.getMonth()];
-        return `${dayName}, ${day} de ${monthName}`;
-    };
-
-    // Sesiones del día seleccionado
-    const selectedDaySessions = selectedDate ? (sessionsByDate[formatDateKey(selectedDate)] || []) : [];
-
-    // Config de estados para badges
-    const statusConfig: Record<string, { label: string; variant: 'default' | 'gold' | 'success' | 'error' }> = {
-        planned: { label: 'Planificada', variant: 'default' },
-        in_progress: { label: 'En curso', variant: 'gold' },
-        completed: { label: 'Completada', variant: 'success' },
-        cancelled: { label: 'Cancelada', variant: 'error' },
-    };
+        // Utilities
+        isToday,
+        formatDateKey,
+        formatModalDate,
+        selectedDaySessions,
+        sessionTypeIcons,
+        statusConfig,
+        getAthlete,
+    } = useCalendarView();
 
     return (
-        <PageContainer
-            title="Calendario"
-            subtitle={`${monthNames[month]} ${year}`}
-            actions={
-                <div className="flex items-center gap-3">
-                    {/* Filtro por atleta */}
-                    <Select
-                        value={selectedAthleteId}
-                        onChange={(e) => setSelectedAthleteId(e.target.value)}
-                        options={athleteOptions}
-                        className="w-48"
-                    />
-                    {/* Navegación del calendario */}
-                    <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="sm" onClick={prevMonth}>←</Button>
-                        <Button variant="ghost" size="sm" onClick={goToday}>Hoy</Button>
-                        <Button variant="ghost" size="sm" onClick={nextMonth}>→</Button>
+        <div className="p-8 space-y-6 max-w-6xl mx-auto">
+            {/* Header */}
+            <AuraSection
+                title="Schedule"
+                action={
+                    <div className="flex items-center gap-3">
+                        {/* Athlete Filter */}
+                        <Select
+                            value={selectedAthleteId}
+                            onChange={(e) => setSelectedAthleteId(e.target.value)}
+                            options={athleteOptions}
+                            className="w-48"
+                        />
+                        {/* Month Navigation */}
+                        <div className="flex items-center gap-1 bg-[#141414] p-1 rounded border border-[#2A2A2A]">
+                            <AuraButton variant="ghost" size="sm" onClick={prevMonth}>
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                                </svg>
+                            </AuraButton>
+                            <span className="text-xs font-mono px-3 py-1 text-gray-400">
+                                {monthNames[month].toUpperCase()} {year}
+                            </span>
+                            <AuraButton variant="ghost" size="sm" onClick={nextMonth}>
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                </svg>
+                            </AuraButton>
+                        </div>
                     </div>
-                </div>
-            }
-        >
-            <Card padding="none">
-                {/* Cabecera de días de la semana */}
-                <div className="grid grid-cols-7 border-b border-[var(--color-border-default)]">
-                    {weekDays.map(day => (
-                        <div key={day} className="p-3 text-center text-xs font-medium text-[var(--color-text-muted)] uppercase">{day}</div>
+                }
+            >
+                {/* Weekly Adherence Bar (when plan active) */}
+                {activePlan && (
+                    <div className="flex items-center gap-4 mt-4 p-3 rounded-lg bg-[#0F0F0F] border border-[#2A2A2A]">
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs text-gray-500">Weekly Progress</span>
+                            <span className="text-sm font-mono text-[var(--color-accent-gold)]">
+                                {weeklyAdherence.completed}/{weeklyAdherence.planned}
+                            </span>
+                        </div>
+                        <div className="flex-1 h-2 bg-[#222] rounded-full overflow-hidden">
+                            <div
+                                className="h-full bg-[var(--color-accent-gold)] transition-all"
+                                style={{ width: `${weeklyAdherence.percentage}%` }}
+                            />
+                        </div>
+                        <span className={`text-xs font-mono ${weeklyAdherence.percentage >= 80 ? 'text-green-400' :
+                            weeklyAdherence.percentage >= 50 ? 'text-yellow-400' : 'text-red-400'
+                            }`}>
+                            {weeklyAdherence.percentage}%
+                        </span>
+                    </div>
+                )}
+            </AuraSection>
+
+            {/* Calendar Grid */}
+            <div className="border border-[#2A2A2A] rounded-lg overflow-hidden bg-[#0F0F0F]">
+                {/* Week Days Header */}
+                <div className="grid grid-cols-7 border-b border-[#2A2A2A] bg-[#141414]">
+                    {weekDays.map((day, i) => (
+                        <div
+                            key={day}
+                            className={`p-3 text-center text-[10px] font-mono ${i === 5 ? 'text-[var(--color-accent-gold)]' : 'text-gray-500'}`}
+                        >
+                            {day}
+                        </div>
                     ))}
                 </div>
 
-                {/* Grid de días */}
+                {/* Days Grid */}
                 <div className="grid grid-cols-7">
                     {calendarDays.map(({ date, isCurrentMonth }, index) => {
-                        if (!date) return <div key={index} className="p-2 min-h-[100px]" />;
+                        if (!date) return <div key={index} className="p-2 min-h-[120px]" />;
                         const dateKey = formatDateKey(date);
                         const daySessions = sessionsByDate[dateKey] || [];
                         const isTodayDate = isToday(date);
+                        const isTrainingDayForThisDate = isTrainingDayForDate(date);
+                        const dayPlan = getDayPlanForDate(date);
 
-                        // Contar sesiones por estado para indicadores
                         const hasPlanned = daySessions.some(s => s.status === 'planned');
                         const hasInProgress = daySessions.some(s => s.status === 'in_progress');
                         const hasCompleted = daySessions.some(s => s.status === 'completed');
@@ -232,55 +167,120 @@ export function CalendarView() {
                             <div
                                 key={index}
                                 onClick={() => handleDayClick(date)}
-                                className={`p-2 min-h-[100px] border-b border-r border-[var(--color-border-default)] cursor-pointer transition-colors hover:bg-[var(--color-bg-elevated)] ${!isCurrentMonth ? 'bg-[var(--color-bg-tertiary)] opacity-50' : ''} ${isTodayDate ? 'bg-[var(--color-accent-gold)]/5 ring-1 ring-[var(--color-accent-gold)]/30 ring-inset' : ''}`}
+                                className={`
+                                    p-2 min-h-[120px] border-r border-b border-[#2A2A2A]
+                                    cursor-pointer transition-colors group
+                                    ${!isCurrentMonth ? 'opacity-40' : 'hover:bg-[#1A1A1A]'}
+                                    ${isTodayDate ? 'bg-[rgba(212,194,154,0.05)]' : ''}
+                                    ${isTrainingDayForThisDate && isCurrentMonth ? 'border-l-2 border-l-[var(--color-accent-gold)]' : ''}
+                                `}
+                                title={dayPlan ? `Training: ${dayPlan.sessionType} (${dayPlan.intensity || 'moderate'})` : undefined}
                             >
-                                {/* Número del día */}
-                                <div className="flex items-center justify-between mb-1">
-                                    <span className={`text-sm font-medium ${isTodayDate ? 'text-[var(--color-accent-gold)]' : !isCurrentMonth ? 'text-[var(--color-text-muted)]' : ''}`}>
-                                        {date.getDate()}
-                                    </span>
-                                    {/* Indicadores de estado */}
+                                {/* Day Number */}
+                                <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-center gap-1">
+                                        <span className={`
+                                            text-xs font-mono
+                                            ${isTodayDate ? 'text-[var(--color-accent-gold)] font-bold' : 'text-gray-500'}
+                                        `}>
+                                            {String(date.getDate()).padStart(2, '0')}
+                                        </span>
+                                        {/* Training Day Indicator with session type icon */}
+                                        {isTrainingDayForThisDate && isCurrentMonth && daySessions.length === 0 && dayPlan && (
+                                            <span className="text-sm" title={`${dayPlan.sessionType} - ${dayPlan.intensity}`}>
+                                                {sessionTypeIcons[dayPlan.sessionType] || '💪'}
+                                            </span>
+                                        )}
+                                        {isTrainingDayForThisDate && isCurrentMonth && daySessions.length === 0 && !dayPlan && (
+                                            <span className="text-[8px] text-[var(--color-accent-gold)] opacity-60">●</span>
+                                        )}
+                                    </div>
+                                    {/* Status Indicators */}
                                     {daySessions.length > 0 && (
                                         <div className="flex gap-1">
-                                            {hasInProgress && <div className="w-2 h-2 rounded-full bg-[var(--color-accent-gold)]" />}
-                                            {hasPlanned && <div className="w-2 h-2 rounded-full bg-[var(--color-bg-elevated)] border border-[var(--color-border-default)]" />}
-                                            {hasCompleted && <div className="w-2 h-2 rounded-full bg-green-500" />}
+                                            {hasInProgress && <div className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent-gold)] animate-pulse" />}
+                                            {hasCompleted && <div className="w-1.5 h-1.5 rounded-full bg-green-500" />}
+                                            {hasPlanned && <div className="w-1.5 h-1.5 rounded-full bg-gray-500" />}
                                         </div>
                                     )}
                                 </div>
 
-                                {/* Lista de sesiones (máximo 3) */}
+                                {/* Session Cards */}
                                 <div className="space-y-1">
-                                    {daySessions.slice(0, 3).map(session => (
+                                    {daySessions.slice(0, 2).map(session => (
                                         <button
                                             key={session.id}
                                             onClick={(e) => {
                                                 e.stopPropagation();
-                                                navigate(`/sessions/live/${session.id}`);
+                                                getSessionAction(session).onClick();
                                             }}
-                                            className={`w-full text-left text-xs p-1 rounded truncate ${session.status === 'completed' ? 'bg-green-500/20 text-green-400' : session.status === 'in_progress' ? 'bg-[var(--color-accent-gold)]/20 text-[var(--color-accent-gold)]' : session.status === 'cancelled' ? 'bg-red-500/20 text-red-400' : 'bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)]'} hover:opacity-80`}
+                                            className={`
+                                                w-full text-left text-[9px] p-1.5 rounded truncate
+                                                transition-colors
+                                                ${session.status === 'completed'
+                                                    ? 'bg-[#1A1A1A] border-l-2 border-green-500 text-white'
+                                                    : session.status === 'in_progress'
+                                                        ? 'bg-[var(--color-accent-gold)] text-black font-bold'
+                                                        : session.status === 'cancelled'
+                                                            ? 'border border-dashed border-[#333] text-gray-500 opacity-50'
+                                                            : 'border border-dashed border-[#333] text-gray-400'
+                                                }
+                                            `}
                                         >
                                             {session.name}
+                                            {session.status === 'completed' && (
+                                                <span className="flex items-center gap-1">
+                                                    <span className="text-[8px] text-green-500">Completed</span>
+                                                    {session.avgIntensity != null && (
+                                                        <span className="text-[8px] text-[var(--color-accent-gold)]" title={`Intensidad: ${session.avgIntensity.toFixed(1)}/10`}>
+                                                            ⚡{session.avgIntensity.toFixed(0)}
+                                                        </span>
+                                                    )}
+                                                </span>
+                                            )}
+                                            {isTodayDate && session.status === 'planned' && (
+                                                <span className="block text-[8px] opacity-80">Today</span>
+                                            )}
                                         </button>
                                     ))}
-                                    {daySessions.length > 3 && (
-                                        <p className="text-xs text-[var(--color-text-muted)]">+{daySessions.length - 3} más</p>
+                                    {daySessions.length > 2 && (
+                                        <p className="text-[9px] text-gray-600">+{daySessions.length - 2} more</p>
                                     )}
                                 </div>
                             </div>
                         );
                     })}
                 </div>
-            </Card>
-
-            {/* Leyenda */}
-            <div className="flex items-center gap-6 mt-4 text-sm text-[var(--color-text-muted)]">
-                <div className="flex items-center gap-2"><div className="w-3 h-3 rounded bg-green-500/20 border border-green-500/30" /><span>Completadas</span></div>
-                <div className="flex items-center gap-2"><div className="w-3 h-3 rounded bg-[var(--color-accent-gold)]/20 border border-[var(--color-accent-gold)]/30" /><span>En curso</span></div>
-                <div className="flex items-center gap-2"><div className="w-3 h-3 rounded bg-[var(--color-bg-elevated)] border border-[var(--color-border-default)]" /><span>Planificadas</span></div>
             </div>
 
-            {/* Modal: Día seleccionado */}
+            {/* Legend */}
+            <div className="flex items-center gap-6 text-xs text-gray-500">
+                <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded bg-[#1A1A1A] border-l-2 border-green-500" />
+                    <span>Completed</span>
+                </div>
+                <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded bg-[var(--color-accent-gold)]" />
+                    <span>In Progress</span>
+                </div>
+                <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded border border-dashed border-[#333]" />
+                    <span>Planned</span>
+                </div>
+            </div>
+
+            {/* Day Agenda (expandible al hacer clic en un día) */}
+            {expandedDate && (
+                <DayAgenda
+                    date={expandedDate}
+                    sessions={sessionsByDate[formatDateKey(expandedDate)] || []}
+                    onClose={() => setExpandedDate(null)}
+                    onCreateSession={(hour) => handleOpenCreateModal(expandedDate, hour)}
+                    onGoToSession={(sessionId) => getSessionAction({ id: sessionId } as any).onClick()}
+                />
+            )}
+
+            {/* Day Modal */}
             <Modal
                 isOpen={!!selectedDate}
                 onClose={handleCloseModal}
@@ -288,11 +288,27 @@ export function CalendarView() {
                 size="md"
             >
                 <div className="space-y-4">
-                    {/* Lista de sesiones del día */}
+                    {/* Quick Start from Plan (if training day with no sessions) */}
+                    {selectedDate && activePlan && getDayPlanFor(selectedDate, activePlan) && selectedDaySessions.length === 0 && (
+                        <div className="p-3 rounded-lg bg-[var(--color-accent-gold)]/10 border border-[var(--color-accent-gold)]/30">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-sm font-medium text-[var(--color-accent-gold)]">
+                                        {sessionTypeIcons[getDayPlanFor(selectedDate, activePlan)?.sessionType || ''] || '💪'} Training Day
+                                    </p>
+                                    <p className="text-xs text-gray-400">
+                                        {getDayPlanFor(selectedDate, activePlan)?.sessionType} • {getDayPlanFor(selectedDate, activePlan)?.intensity || 'moderate'}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Sessions List */}
                     {selectedDaySessions.length > 0 ? (
                         <div className="space-y-2">
-                            <h4 className="text-sm font-medium text-[var(--color-text-muted)]">
-                                Sesiones ({selectedDaySessions.length})
+                            <h4 className="text-xs font-mono text-gray-500 uppercase tracking-widest">
+                                Sessions ({selectedDaySessions.length})
                             </h4>
                             <div className="space-y-2">
                                 {selectedDaySessions.map(session => {
@@ -301,92 +317,94 @@ export function CalendarView() {
                                     const status = statusConfig[session.status];
 
                                     return (
-                                        <div
+                                        <AuraListItem
                                             key={session.id}
-                                            className="flex items-center justify-between p-3 rounded-lg bg-[var(--color-bg-tertiary)]"
-                                        >
-                                            <div className="flex-1 min-w-0">
-                                                <p className="font-medium truncate">{session.name}</p>
-                                                <div className="flex items-center gap-2 mt-1">
-                                                    {selectedAthleteId === 'all' && athlete && (
-                                                        <span className="text-xs text-[var(--color-text-muted)]">
-                                                            {athlete.name}
-                                                        </span>
-                                                    )}
-                                                    <Badge size="sm" variant={status.variant}>
+                                            title={session.name}
+                                            subtitle={selectedAthleteId === 'all' && athlete ? athlete.name : undefined}
+                                            rightContent={
+                                                <div className="flex items-center gap-2">
+                                                    <AuraBadge variant={status.variant} size="sm">
                                                         {status.label}
-                                                    </Badge>
+                                                    </AuraBadge>
+                                                    <AuraButton size="sm" onClick={action.onClick}>
+                                                        {action.label}
+                                                    </AuraButton>
                                                 </div>
-                                            </div>
-                                            <Button size="sm" onClick={action.onClick}>
-                                                {action.label}
-                                            </Button>
-                                        </div>
+                                            }
+                                        />
                                     );
                                 })}
                             </div>
                         </div>
                     ) : (
-                        <EmptyState
+                        <AuraEmptyState
                             icon="📅"
-                            title="Sin sesiones"
-                            description="No hay sesiones programadas para este día."
+                            title="No sessions scheduled"
+                            description="Click below to schedule a session for this day."
+                            size="sm"
                         />
                     )}
 
-                    {/* Separador */}
-                    <div className="border-t border-[var(--color-border-default)]" />
+                    <AuraDivider />
 
-                    {/* Crear nueva sesión */}
+                    {/* Create Session Form */}
                     {!showCreateForm ? (
-                        <Button
+                        <AuraButton
                             variant="ghost"
-                            className="w-full"
-                            onClick={() => setShowCreateForm(true)}
+                            fullWidth
+                            onClick={() => setNewSessionName('')}
+                            icon={
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                </svg>
+                            }
                         >
-                            + Crear nueva sesión
-                        </Button>
+                            Create new session
+                        </AuraButton>
                     ) : (
-                        <div className="space-y-3 p-4 rounded-lg bg-[var(--color-bg-tertiary)] border border-[var(--color-border-default)]">
-                            <h4 className="font-medium text-sm">Nueva sesión</h4>
-                            <Input
-                                placeholder="Nombre de la sesión *"
-                                value={newSessionName}
-                                onChange={(e) => setNewSessionName(e.target.value)}
-                            />
-                            <Select
-                                value={newSessionAthleteId}
-                                onChange={(e) => setNewSessionAthleteId(e.target.value)}
-                                options={athleteOptionsForCreate}
-                            />
-                            <Select
-                                value={newSessionTemplateId}
-                                onChange={(e) => setNewSessionTemplateId(e.target.value)}
-                                options={templateOptions}
-                            />
-                            <p className="text-xs text-[var(--color-text-muted)]">
-                                Fecha: {selectedDate ? formatModalDate(selectedDate) : ''}
-                            </p>
-                            <div className="flex gap-2">
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => setShowCreateForm(false)}
-                                >
-                                    Cancelar
-                                </Button>
-                                <Button
-                                    size="sm"
-                                    onClick={handleCreateSession}
-                                    disabled={!newSessionName.trim() || !newSessionAthleteId}
-                                >
-                                    Crear Sesión
-                                </Button>
+                        <AuraPanel variant="default">
+                            <div className="space-y-3">
+                                <h4 className="text-sm font-medium text-white">New Session</h4>
+                                <Input
+                                    placeholder="Session name *"
+                                    value={newSessionName}
+                                    onChange={(e) => setNewSessionName(e.target.value)}
+                                />
+                                <Select
+                                    value={newSessionAthleteId}
+                                    onChange={(e) => setNewSessionAthleteId(e.target.value)}
+                                    options={athleteOptionsForCreate}
+                                />
+                                <Select
+                                    value={newSessionTemplateId}
+                                    onChange={(e) => setNewSessionTemplateId(e.target.value)}
+                                    options={templateOptions}
+                                />
+                                <p className="text-[10px] text-gray-500 font-mono">
+                                    Date: {selectedDate ? formatModalDate(selectedDate) : ''}
+                                </p>
+                                <div className="flex gap-2 pt-2">
+                                    <AuraButton
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={handleCloseModal}
+                                    >
+                                        Cancel
+                                    </AuraButton>
+                                    <AuraButton
+                                        variant="gold"
+                                        size="sm"
+                                        onClick={handleCreateSession}
+                                        disabled={!newSessionName.trim() || !newSessionAthleteId}
+                                    >
+                                        Create Session
+                                    </AuraButton>
+                                </div>
                             </div>
-                        </div>
+                        </AuraPanel>
                     )}
                 </div>
             </Modal>
-        </PageContainer>
+        </div>
     );
 }

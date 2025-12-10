@@ -1,11 +1,20 @@
 /**
  * AthletesList - Lista de atletas con búsqueda y gestión
+ * Rediseñado con UI Aura
  */
 
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { PageContainer } from '../components/layout';
-import { Card, Button, Input, Badge, Avatar, EmptyState, Modal } from '../components/ui';
+import { Modal, Input, Avatar } from '../components/ui';
+import {
+    AuraSection,
+    AuraGrid,
+    AuraCard,
+    AuraButton,
+    AuraBadge,
+    AuraPanel,
+    AuraEmptyState,
+} from '../components/ui/aura';
 import { useAthletes, useTrainingStore, useSessions } from '../store/store';
 import type { Athlete } from '../types/types';
 
@@ -69,33 +78,36 @@ export function AthletesList() {
 
     // Formatear fecha relativa
     const formatRelativeDate = (dateStr?: string) => {
-        if (!dateStr) return 'Nunca';
+        if (!dateStr) return 'Never';
         const date = new Date(dateStr);
         const now = new Date();
         const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
 
-        if (diffDays === 0) return 'Hoy';
-        if (diffDays === 1) return 'Ayer';
-        if (diffDays < 7) return `Hace ${diffDays} días`;
-        if (diffDays < 30) return `Hace ${Math.floor(diffDays / 7)} semanas`;
+        if (diffDays === 0) return 'Today';
+        if (diffDays === 1) return 'Yesterday';
+        if (diffDays < 7) return `${diffDays}d ago`;
+        if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`;
         return date.toLocaleDateString();
     };
 
     return (
-        <PageContainer
-            title="Atletas"
-            subtitle={`${athletes.length} atleta${athletes.length !== 1 ? 's' : ''} registrado${athletes.length !== 1 ? 's' : ''}`}
-            actions={
-                <Button onClick={() => setShowAddModal(true)}>
-                    + Nuevo Atleta
-                </Button>
-            }
-        >
-            {/* Barra de búsqueda */}
+        <div className="p-8 space-y-6 max-w-6xl mx-auto">
+            {/* Header */}
+            <AuraSection
+                title="Athletes"
+                subtitle={`${athletes.length} registered athlete${athletes.length !== 1 ? 's' : ''}`}
+                action={
+                    <AuraButton variant="gold" onClick={() => setShowAddModal(true)}>
+                        + New Athlete
+                    </AuraButton>
+                }
+            />
+
+            {/* Search */}
             {athletes.length > 0 && (
-                <div className="mb-6">
+                <div className="flex gap-4 p-4 bg-[#0F0F0F] border border-[#2A2A2A] rounded-lg">
                     <Input
-                        placeholder="Buscar por nombre o email..."
+                        placeholder="Search by name or email..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="max-w-md"
@@ -103,32 +115,32 @@ export function AthletesList() {
                 </div>
             )}
 
-            {/* Lista de atletas */}
+            {/* Athletes Grid */}
             {athletes.length === 0 ? (
-                <Card>
-                    <EmptyState
+                <AuraPanel>
+                    <AuraEmptyState
                         icon="👥"
-                        title="No hay atletas registrados"
-                        description="Añade tu primer atleta para comenzar a registrar sus entrenamientos."
+                        title="Your team starts here!"
+                        description="Add your first athlete to start tracking their progress and gains."
                         action={{
-                            label: 'Añadir Atleta',
+                            label: 'Add Athlete',
                             onClick: () => setShowAddModal(true),
                         }}
                     />
-                </Card>
+                </AuraPanel>
             ) : filteredAthletes.length === 0 ? (
-                <Card>
-                    <EmptyState
+                <AuraPanel>
+                    <AuraEmptyState
                         icon="🔍"
-                        title="Sin resultados"
-                        description={`No se encontraron atletas que coincidan con "${searchQuery}"`}
+                        title="No matches found"
+                        description={`No athletes matching "${searchQuery}". Try a different search.`}
+                        size="sm"
                     />
-                </Card>
+                </AuraPanel>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <AuraGrid cols={3} gap="md">
                     {filteredAthletes.map((athlete) => {
                         const stats = getAthleteStats(athlete.id);
-
                         return (
                             <AthleteCard
                                 key={athlete.id}
@@ -140,33 +152,34 @@ export function AthletesList() {
                             />
                         );
                     })}
-                </div>
+                </AuraGrid>
             )}
 
-            {/* Modal: Añadir Atleta */}
+            {/* Modal: Add Athlete */}
             <Modal
                 isOpen={showAddModal}
                 onClose={() => setShowAddModal(false)}
-                title="Nuevo Atleta"
+                title="New Athlete"
                 size="md"
                 footer={
                     <>
-                        <Button variant="ghost" onClick={() => setShowAddModal(false)}>
-                            Cancelar
-                        </Button>
-                        <Button
+                        <AuraButton variant="ghost" onClick={() => setShowAddModal(false)}>
+                            Cancel
+                        </AuraButton>
+                        <AuraButton
+                            variant="gold"
                             onClick={handleCreateAthlete}
                             disabled={!newAthlete.name.trim()}
                         >
-                            Crear Atleta
-                        </Button>
+                            Create Athlete
+                        </AuraButton>
                     </>
                 }
             >
                 <div className="space-y-4">
                     <Input
-                        label="Nombre *"
-                        placeholder="Nombre completo del atleta"
+                        label="Name *"
+                        placeholder="Full name"
                         value={newAthlete.name}
                         onChange={(e) => setNewAthlete({ ...newAthlete, name: e.target.value })}
                         autoFocus
@@ -174,36 +187,36 @@ export function AthletesList() {
                     <Input
                         label="Email"
                         type="email"
-                        placeholder="email@ejemplo.com"
+                        placeholder="email@example.com"
                         value={newAthlete.email}
                         onChange={(e) => setNewAthlete({ ...newAthlete, email: e.target.value })}
                     />
                     <Input
-                        label="Teléfono"
+                        label="Phone"
                         type="tel"
-                        placeholder="+34 600 000 000"
+                        placeholder="+1 555 000 0000"
                         value={newAthlete.phone}
                         onChange={(e) => setNewAthlete({ ...newAthlete, phone: e.target.value })}
                     />
                     <div>
-                        <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">
-                            Notas
+                        <label className="block text-[10px] text-gray-500 uppercase tracking-widest mb-2">
+                            Notes
                         </label>
                         <textarea
-                            placeholder="Notas adicionales sobre el atleta..."
+                            placeholder="Additional notes..."
                             value={newAthlete.notes}
                             onChange={(e) => setNewAthlete({ ...newAthlete, notes: e.target.value })}
                             rows={3}
-                            className="input resize-none"
+                            className="w-full bg-[#0A0A0A] border border-[#333] rounded px-3 py-2 text-sm text-white focus:border-[var(--color-accent-gold)] outline-none resize-none"
                         />
                     </div>
                 </div>
             </Modal>
-        </PageContainer>
+        </div>
     );
 }
 
-// Componente de tarjeta de atleta
+// Athlete Card Component
 interface AthleteCardProps {
     athlete: Athlete;
     stats: {
@@ -221,93 +234,85 @@ function AthleteCard({ athlete, stats, formatRelativeDate, onClick, onDelete }: 
 
     return (
         <>
-            <Card
-                hover
-                className="relative group"
-                onClick={onClick}
-            >
+            <AuraCard hover className="relative group" onClick={onClick}>
                 {/* Header */}
                 <div className="flex items-start gap-4 mb-4">
                     <Avatar name={athlete.name} imageUrl={athlete.avatarUrl} size="lg" />
                     <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-[var(--color-text-primary)] truncate">
-                            {athlete.name}
-                        </h3>
+                        <h3 className="font-semibold text-white truncate">{athlete.name}</h3>
                         {athlete.email && (
-                            <p className="text-sm text-[var(--color-text-muted)] truncate">
-                                {athlete.email}
-                            </p>
+                            <p className="text-xs text-gray-500 truncate">{athlete.email}</p>
                         )}
-                        <Badge variant={athlete.isActive ? 'gold' : 'default'} size="sm">
-                            {athlete.isActive ? 'Activo' : 'Inactivo'}
-                        </Badge>
+                        <AuraBadge variant={athlete.isActive ? 'gold' : 'muted'} size="sm">
+                            {athlete.isActive ? 'Active' : 'Inactive'}
+                        </AuraBadge>
                     </div>
                 </div>
 
                 {/* Stats */}
-                <div className="grid grid-cols-3 gap-2 pt-4 border-t border-[var(--color-border-default)]">
+                <div className="grid grid-cols-3 gap-2 pt-4 border-t border-[#2A2A2A]">
                     <div className="text-center">
-                        <p className="text-lg font-bold text-[var(--color-accent-beige)]">
+                        <p className="text-lg font-mono text-[var(--color-accent-gold)]">
                             {stats.totalSessions}
                         </p>
-                        <p className="text-xs text-[var(--color-text-muted)]">Sesiones</p>
+                        <p className="text-[9px] text-gray-500 uppercase">Sessions</p>
                     </div>
                     <div className="text-center">
-                        <p className="text-lg font-bold text-[var(--color-accent-beige)]">
+                        <p className="text-lg font-mono text-[var(--color-accent-gold)]">
                             {stats.totalVolume >= 1000
                                 ? `${(stats.totalVolume / 1000).toFixed(1)}k`
                                 : stats.totalVolume}
                         </p>
-                        <p className="text-xs text-[var(--color-text-muted)]">Kg total</p>
+                        <p className="text-[9px] text-gray-500 uppercase">Total Kg</p>
                     </div>
                     <div className="text-center">
-                        <p className="text-sm font-medium text-[var(--color-text-secondary)]">
+                        <p className="text-sm font-mono text-gray-400">
                             {formatRelativeDate(stats.lastSessionDate)}
                         </p>
-                        <p className="text-xs text-[var(--color-text-muted)]">Última</p>
+                        <p className="text-[9px] text-gray-500 uppercase">Last</p>
                     </div>
                 </div>
 
-                {/* Delete button (appears on hover) */}
+                {/* Delete button */}
                 <button
                     onClick={(e) => {
                         e.stopPropagation();
                         setShowDeleteConfirm(true);
                     }}
-                    className="absolute top-4 right-4 p-2 rounded-lg bg-[var(--color-bg-elevated)] text-[var(--color-text-muted)] opacity-0 group-hover:opacity-100 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                    className="absolute top-3 right-3 p-1.5 rounded bg-[#1A1A1A] text-gray-600 opacity-0 group-hover:opacity-100 hover:text-red-400 transition-all"
                 >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                     </svg>
                 </button>
-            </Card>
+            </AuraCard>
 
-            {/* Delete confirmation modal */}
+            {/* Delete Modal */}
             <Modal
                 isOpen={showDeleteConfirm}
                 onClose={() => setShowDeleteConfirm(false)}
-                title="Eliminar Atleta"
+                title="Delete Athlete"
                 size="sm"
                 footer={
                     <>
-                        <Button variant="ghost" onClick={() => setShowDeleteConfirm(false)}>
-                            Cancelar
-                        </Button>
-                        <Button
-                            className="bg-red-600 hover:bg-red-700"
+                        <AuraButton variant="ghost" onClick={() => setShowDeleteConfirm(false)}>
+                            Cancel
+                        </AuraButton>
+                        <AuraButton
+                            variant="secondary"
+                            className="!bg-red-600 hover:!bg-red-700 !border-red-600"
                             onClick={() => {
                                 onDelete();
                                 setShowDeleteConfirm(false);
                             }}
                         >
-                            Eliminar
-                        </Button>
+                            Delete
+                        </AuraButton>
                     </>
                 }
             >
-                <p className="text-[var(--color-text-secondary)]">
-                    ¿Estás seguro de que quieres eliminar a <strong>{athlete.name}</strong>?
-                    Esta acción no se puede deshacer.
+                <p className="text-gray-400">
+                    Delete <strong className="text-white">{athlete.name}</strong>? This cannot be undone.
                 </p>
             </Modal>
         </>

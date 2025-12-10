@@ -1,190 +1,439 @@
 /**
  * Dashboard - Panel principal con estadísticas y actividad reciente
+ * Rediseñado con sistema UI Aura
+ * 
+ * REFACTORED: Usa useDashboardData hook para toda la lógica de datos (Phase 5)
+ * UPDATED: Clickable metrics → TrainingAnalytics, TrainingPlanModal integration
+ * PHASE 6: Includes FatigueIndicator for overtraining alerts
  */
 
-import { useMemo } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { PageContainer } from '../components/layout';
-import { Card, Button, StatCard, Badge } from '../components/ui';
-import { useSessions, useAthletes, useTemplates } from '../store/store';
+import {
+    AuraSection,
+    AuraGrid,
+    AuraMetric,
+    AuraPanel,
+    AuraButton,
+    AuraBadge,
+    AuraListItem,
+    AuraCard,
+    AuraEmptyState,
+} from '../components/ui/aura';
+import { TrainingPlanModal, AIInsightBanner, useAIInsight } from '../components/dashboard';
+import { FatigueIndicator } from '../components/common';
+import { useDashboardData } from '../hooks';
+import { formatDateShort } from '../utils';
 
 export function Dashboard() {
     const navigate = useNavigate();
-    const sessions = useSessions();
-    const athletes = useAthletes();
-    const templates = useTemplates();
 
-    // Stats
-    const stats = useMemo(() => {
-        const now = new Date();
-        const thisWeekStart = new Date(now);
-        thisWeekStart.setDate(now.getDate() - now.getDay());
-        thisWeekStart.setHours(0, 0, 0, 0);
+    const {
+        stats,
+        weeklyIntensityFatigue,
+        recentSessions,
+        upcomingSessions,
+        activeSession,
+        lastCompletedSession,
+        activePlan,
+        weeklyAdherence,
+        todayPlan,
+        getAIRecommendations,
+        hasSessionToday,
+        getAthleteName,
+    } = useDashboardData();
 
-        const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    // State for Training Plan Modal
+    const [showTrainingPlanModal, setShowTrainingPlanModal] = useState(false);
 
-        const completedSessions = sessions.filter(s => s.status === 'completed');
-        const weekSessions = completedSessions.filter(s => s.completedAt && new Date(s.completedAt) >= thisWeekStart);
-        const monthSessions = completedSessions.filter(s => s.completedAt && new Date(s.completedAt) >= thisMonthStart);
-
-        const totalVolume = completedSessions.reduce((sum, s) => sum + (s.totalVolume || 0), 0);
-        const weekVolume = weekSessions.reduce((sum, s) => sum + (s.totalVolume || 0), 0);
-        const avgDuration = completedSessions.length > 0
-            ? Math.round(completedSessions.reduce((sum, s) => sum + (s.durationMinutes || 0), 0) / completedSessions.length)
-            : 0;
-
-        const activeAthletes = athletes.filter(a => a.isActive).length;
-        const inProgressSessions = sessions.filter(s => s.status === 'in_progress').length;
-
-        return {
-            totalSessions: completedSessions.length,
-            weekSessions: weekSessions.length,
-            monthSessions: monthSessions.length,
-            totalVolume,
-            weekVolume,
-            avgDuration,
-            activeAthletes,
-            inProgressSessions,
-            totalAthletes: athletes.length,
-            totalTemplates: templates.length,
-        };
-    }, [sessions, athletes, templates]);
-
-    // Sesiones recientes
-    const recentSessions = useMemo(() => {
-        return sessions
-            .filter(s => s.status === 'completed')
-            .sort((a, b) => new Date(b.completedAt || 0).getTime() - new Date(a.completedAt || 0).getTime())
-            .slice(0, 5);
-    }, [sessions]);
-
-    // Próximas sesiones
-    const upcomingSessions = useMemo(() => {
-        return sessions
-            .filter(s => s.status === 'planned' && s.scheduledDate)
-            .sort((a, b) => new Date(a.scheduledDate!).getTime() - new Date(b.scheduledDate!).getTime())
-            .slice(0, 3);
-    }, [sessions]);
-
-    const getAthleteName = (id: string) => athletes.find(a => a.id === id)?.name || 'Atleta';
-
-    const formatDate = (dateStr?: string) => {
-        if (!dateStr) return '';
-        return new Date(dateStr).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
-    };
+    // AI Insight
+    const aiInsight = useAIInsight(weeklyAdherence, !!todayPlan, hasSessionToday);
 
     return (
-        <PageContainer
-            title="Dashboard"
-            subtitle="Resumen de actividad"
-            actions={
-                <Button onClick={() => navigate('/sessions')}>+ Nueva Sesión</Button>
-            }
-        >
-            {/* Main Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-                <StatCard label="Sesiones Esta Semana" value={stats.weekSessions} icon="📊" />
-                <StatCard label="Volumen Semanal" value={`${(stats.weekVolume / 1000).toFixed(1)}k kg`} icon="🏋️" />
-                <StatCard label="Atletas Activos" value={stats.activeAthletes} icon="👥" />
-                <StatCard label="Duración Media" value={`${stats.avgDuration} min`} icon="⏱️" />
-            </div>
+        <div className="p-8 space-y-8 max-w-6xl mx-auto">
+            {/* AI Insight Banner */}
+            {aiInsight && (
+                <AIInsightBanner
+                    type={aiInsight.type}
+                    message={aiInsight.message}
+                    action={aiInsight.action}
+                    dismissible={aiInsight.dismissible}
+                />
+            )}
 
-            {/* Quick Actions */}
-            {stats.inProgressSessions > 0 && (
-                <Card className="mb-6 border-[var(--color-accent-gold)] bg-[var(--color-accent-gold)]/5">
+            {/* PHASE 6: Overtraining Alert - shown when active plan or high activity */}
+            {(activePlan || stats.weekSessions >= 3) && (
+                <FatigueIndicator
+                    athleteId={activePlan?.athleteId || 'global'}
+                    showDetails={false}
+                    compact
+                />
+            )}
+
+            {/* Header Section */}
+            <AuraSection
+                title="Dashboard"
+                subtitle="Daily overview and active metrics."
+                action={
+                    <AuraButton onClick={() => navigate('/sessions')}>
+                        + Nueva Sesión
+                    </AuraButton>
+                }
+            >
+                {/* Main Metrics - Clickable with focus params */}
+                <AuraGrid cols={4} gap="md">
+                    <div
+                        onClick={() => navigate('/analytics?tab=training&focus=volume')}
+                        className="cursor-pointer hover:scale-[1.02] transition-transform"
+                        title="Volumen total levantado esta semana (kg)"
+                    >
+                        <AuraMetric
+                            label="Weekly Volume"
+                            value={`${(stats.weekVolume / 1000).toFixed(1)}K`}
+                            trend={stats.weekVolume > 0 ? { value: 12, isPositive: true } : undefined}
+                        />
+                    </div>
+                    <div
+                        onClick={() => setShowTrainingPlanModal(true)}
+                        className="cursor-pointer hover:scale-[1.02] transition-transform"
+                        title="Entrenos completados/planificados esta semana"
+                    >
+                        <AuraMetric
+                            label="Sessions"
+                            value={activePlan ? `${weeklyAdherence.completed}/${weeklyAdherence.planned}` : `${stats.weekSessions}/5`}
+                            icon={
+                                <div className="flex flex-col gap-1">
+                                    <div className="text-[10px] text-gray-500">
+                                        {activePlan ? 'Plan Active' : 'Set Plan →'}
+                                    </div>
+                                    <div className="h-1 w-12 bg-[#222] rounded-full overflow-hidden">
+                                        <div
+                                            className="h-full bg-[var(--color-accent-gold)]"
+                                            style={{
+                                                width: activePlan
+                                                    ? `${weeklyAdherence.percentage}%`
+                                                    : `${Math.min(100, (stats.weekSessions / 5) * 100)}%`
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+                            }
+                        />
+                    </div>
+                    <div
+                        onClick={() => navigate('/athletes')}
+                        className="cursor-pointer hover:scale-[1.02] transition-transform"
+                        title="Atletas con sesiones en los últimos 30 días"
+                    >
+                        <AuraMetric
+                            label="Active Athletes"
+                            value={stats.activeAthletes}
+                        />
+                    </div>
+                    <div
+                        onClick={() => navigate('/analytics?tab=training&focus=duration')}
+                        className="cursor-pointer hover:scale-[1.02] transition-transform"
+                        title="Duración promedio de sesiones completadas"
+                    >
+                        <AuraMetric
+                            label="Avg Duration"
+                            value={`${stats.avgDuration} min`}
+                        />
+                    </div>
+                </AuraGrid>
+
+                {/* Secondary KPIs: Weekly Intensity & Fatigue */}
+                {weeklyIntensityFatigue.count > 0 && (
+                    <div className="grid grid-cols-2 gap-4 mt-4">
+                        <AuraCard className="text-center py-3">
+                            <p className="text-lg font-mono text-[var(--color-accent-gold)]">
+                                {weeklyIntensityFatigue.avgIntensity?.toFixed(1) ?? '-'}/10
+                            </p>
+                            <p className="text-[10px] text-gray-500">Intensidad Media Semanal</p>
+                        </AuraCard>
+                        <AuraCard className="text-center py-3">
+                            <p className="text-lg font-mono text-blue-400">
+                                {weeklyIntensityFatigue.avgFatigue?.toFixed(1) ?? '-'}/10
+                            </p>
+                            <p className="text-[10px] text-gray-500">Fatiga Previa Media Semanal</p>
+                        </AuraCard>
+                    </div>
+                )}
+            </AuraSection>
+
+            {/* AI Recommendations & Today's Plan */}
+            {activePlan && (
+                <AuraGrid cols={2} gap="md">
+                    {/* Today's Plan */}
+                    <AuraPanel variant="default">
+                        <div className="flex items-center gap-2 mb-3">
+                            <span className="text-lg">📅</span>
+                            <span className="text-sm font-medium text-white">Today's Plan</span>
+                        </div>
+                        {todayPlan ? (
+                            <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-xs text-gray-400">Session Type</span>
+                                    <AuraBadge variant="gold">{todayPlan.sessionType}</AuraBadge>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <span className="text-xs text-gray-400">Intensity</span>
+                                    <span className="text-sm text-white capitalize">{todayPlan.intensity || 'moderate'}</span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <span className="text-xs text-gray-400">Focus</span>
+                                    <span className="text-sm text-white">{todayPlan.focus || activePlan.objective}</span>
+                                </div>
+                                <AuraButton
+                                    variant="gold"
+                                    fullWidth
+                                    size="sm"
+                                    onClick={() => navigate('/sessions')}
+                                    className="mt-3"
+                                >
+                                    Start Today's Session
+                                </AuraButton>
+                            </div>
+                        ) : (
+                            <p className="text-xs text-gray-500">Rest day - no session planned</p>
+                        )}
+                    </AuraPanel>
+
+                    {/* AI Recommendations */}
+                    <AuraPanel variant="default">
+                        <div className="flex items-center gap-2 mb-3">
+                            <span className="text-lg">🤖</span>
+                            <span className="text-sm font-medium text-white">AI Insights</span>
+                        </div>
+                        <div className="space-y-2">
+                            {getAIRecommendations().map((rec, idx) => (
+                                <div
+                                    key={idx}
+                                    className="text-xs text-gray-300 py-1.5 px-2 bg-[#1A1A1A] rounded"
+                                >
+                                    {rec}
+                                </div>
+                            ))}
+                        </div>
+                        <div className="mt-3 pt-3 border-t border-[#222]">
+                            <div className="flex justify-between text-xs">
+                                <span className="text-gray-500">Weekly Score</span>
+                                <span className="text-[var(--color-accent-gold)] font-mono">
+                                    {weeklyAdherence.weeklyScore?.toFixed(0) || 0}%
+                                </span>
+                            </div>
+                        </div>
+                    </AuraPanel>
+                </AuraGrid>
+            )}
+
+            {/* Active Session Panel */}
+            {activeSession && (
+                <AuraPanel variant="accent" corners>
+                    <div className="flex justify-between items-start">
+                        <div>
+                            <div className="flex items-center gap-2 mb-1">
+                                <div className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent-gold)] animate-pulse" />
+                                <span className="text-[10px] font-bold text-[var(--color-accent-gold)] uppercase tracking-widest">
+                                    Live Session
+                                </span>
+                            </div>
+                            <h3 className="text-xl text-white font-medium">{activeSession.name}</h3>
+                            <p className="text-xs text-gray-500 font-mono mt-1">
+                                {getAthleteName(activeSession.athleteId)}
+                            </p>
+                        </div>
+                        <AuraButton
+                            variant="gold"
+                            onClick={() => navigate(`/sessions/live/${activeSession.id}`)}
+                            icon={
+                                <svg className="w-3 h-3 fill-black" viewBox="0 0 24 24">
+                                    <path d="M8 5v14l11-7z" />
+                                </svg>
+                            }
+                        >
+                            Resume
+                        </AuraButton>
+                    </div>
+                </AuraPanel>
+            )}
+
+            {/* Quick Notice for In-Progress Sessions */}
+            {stats.inProgressSessions > 0 && !activeSession && (
+                <AuraPanel variant="highlight">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <span className="text-2xl">🔴</span>
                             <div>
-                                <h3 className="font-semibold">Sesión en curso</h3>
-                                <p className="text-sm text-[var(--color-text-muted)]">Tienes {stats.inProgressSessions} sesión(es) activa(s)</p>
+                                <h3 className="font-semibold text-white">Sesión en curso</h3>
+                                <p className="text-sm text-gray-500">
+                                    Tienes {stats.inProgressSessions} sesión(es) activa(s)
+                                </p>
                             </div>
                         </div>
-                        <Button onClick={() => navigate('/sessions')}>Ver sesiones</Button>
+                        <AuraButton onClick={() => navigate('/sessions')}>
+                            Ver sesiones
+                        </AuraButton>
                     </div>
-                </Card>
+                </AuraPanel>
             )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Quick Actions */}
+            <AuraPanel
+                header={<span className="text-sm text-white font-medium">⚡ Quick Actions</span>}
+            >
+                <div className="flex flex-wrap gap-3">
+                    <AuraButton
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => navigate('/templates')}
+                    >
+                        📋 Create from template
+                    </AuraButton>
+                    {lastCompletedSession && (
+                        <AuraButton
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => navigate(`/sessions?duplicate=${lastCompletedSession.id}`)}
+                        >
+                            🔄 Repeat last session
+                        </AuraButton>
+                    )}
+                </div>
+            </AuraPanel>
+
+            {/* Sessions Grid */}
+            <AuraGrid cols={2} gap="lg">
                 {/* Recent Sessions */}
-                <Card>
-                    <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-lg font-semibold">Sesiones Recientes</h3>
-                        <Button variant="ghost" size="sm" onClick={() => navigate('/sessions')}>Ver todas</Button>
-                    </div>
+                <AuraPanel
+                    header={
+                        <button
+                            onClick={() => navigate('/sessions?filter=recent')}
+                            className="w-full flex items-center justify-between group py-1"
+                            role="link"
+                            aria-label="Ver todas las sesiones recientes"
+                        >
+                            <span className="text-sm text-white font-medium group-hover:text-[var(--color-accent-gold)] transition-colors">
+                                Recent Sessions →
+                            </span>
+                        </button>
+                    }
+                >
                     {recentSessions.length === 0 ? (
-                        <p className="text-[var(--color-text-muted)] text-center py-6">Sin sesiones completadas</p>
+                        <AuraEmptyState
+                            icon="🏋️"
+                            title="Ready to train!"
+                            description="Complete your first session to see it here."
+                            size="sm"
+                        />
                     ) : (
-                        <div className="space-y-3">
+                        <div className="space-y-2">
                             {recentSessions.map(session => (
-                                <div
+                                <AuraListItem
                                     key={session.id}
+                                    title={session.name}
+                                    subtitle={`${getAthleteName(session.athleteId)} • ${formatDateShort(session.completedAt)}`}
                                     onClick={() => navigate(`/sessions/live/${session.id}`)}
-                                    className="flex items-center justify-between p-3 rounded-lg bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg-elevated)] cursor-pointer transition-colors"
-                                >
-                                    <div>
-                                        <p className="font-medium">{session.name}</p>
-                                        <p className="text-sm text-[var(--color-text-muted)]">
-                                            {getAthleteName(session.athleteId)} • {formatDate(session.completedAt)}
-                                        </p>
-                                    </div>
-                                    <div className="text-right">
-                                        <p className="text-[var(--color-accent-beige)] font-semibold">
-                                            {session.totalVolume?.toLocaleString() || 0} kg
-                                        </p>
-                                        <p className="text-xs text-[var(--color-text-muted)]">
-                                            {session.totalSets || 0} series
-                                        </p>
-                                    </div>
-                                </div>
+                                    rightContent={
+                                        <div className="text-right">
+                                            <p className="text-[var(--color-accent-gold)] font-semibold text-sm font-mono">
+                                                {session.totalVolume?.toLocaleString() || 0} kg
+                                            </p>
+                                            <p className="text-[10px] text-gray-500">
+                                                {session.totalSets || 0} sets
+                                            </p>
+                                        </div>
+                                    }
+                                />
                             ))}
                         </div>
                     )}
-                </Card>
+                </AuraPanel>
 
                 {/* Upcoming Sessions */}
-                <Card>
-                    <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-lg font-semibold">Próximas Sesiones</h3>
-                        <Button variant="ghost" size="sm" onClick={() => navigate('/calendar')}>Ver calendario</Button>
-                    </div>
+                <AuraPanel
+                    header={
+                        <button
+                            onClick={() => navigate('/calendar')}
+                            className="w-full flex items-center justify-between group py-1"
+                            role="link"
+                            aria-label="Ver calendario de sesiones"
+                        >
+                            <span className="text-sm text-white font-medium group-hover:text-[var(--color-accent-gold)] transition-colors">
+                                Upcoming Sessions →
+                            </span>
+                        </button>
+                    }
+                >
                     {upcomingSessions.length === 0 ? (
-                        <p className="text-[var(--color-text-muted)] text-center py-6">Sin sesiones programadas</p>
+                        <AuraEmptyState
+                            icon="📅"
+                            title="No upcoming sessions"
+                            description="Schedule sessions in the calendar to stay on track."
+                            size="sm"
+                        />
                     ) : (
-                        <div className="space-y-3">
+                        <div className="space-y-2">
                             {upcomingSessions.map(session => (
-                                <div
+                                <AuraListItem
                                     key={session.id}
+                                    title={session.name}
+                                    subtitle={getAthleteName(session.athleteId)}
                                     onClick={() => navigate(`/sessions/live/${session.id}`)}
-                                    className="flex items-center justify-between p-3 rounded-lg bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg-elevated)] cursor-pointer transition-colors"
-                                >
-                                    <div>
-                                        <p className="font-medium">{session.name}</p>
-                                        <p className="text-sm text-[var(--color-text-muted)]">{getAthleteName(session.athleteId)}</p>
-                                    </div>
-                                    <Badge variant="gold">{formatDate(session.scheduledDate)}</Badge>
-                                </div>
+                                    rightContent={
+                                        <AuraBadge variant="gold">
+                                            {formatDateShort(session.scheduledDate)}
+                                        </AuraBadge>
+                                    }
+                                />
                             ))}
                         </div>
                     )}
-                </Card>
-            </div>
+                </AuraPanel>
+            </AuraGrid>
 
             {/* Summary Stats */}
-            <div className="grid grid-cols-3 gap-4 mt-6">
-                <Card className="text-center py-4">
-                    <p className="text-3xl font-bold text-[var(--color-accent-beige)]">{stats.totalSessions}</p>
-                    <p className="text-sm text-[var(--color-text-muted)]">Sesiones totales</p>
-                </Card>
-                <Card className="text-center py-4">
-                    <p className="text-3xl font-bold text-[var(--color-accent-beige)]">{(stats.totalVolume / 1000).toFixed(0)}k</p>
-                    <p className="text-sm text-[var(--color-text-muted)]">Kg levantados</p>
-                </Card>
-                <Card className="text-center py-4">
-                    <p className="text-3xl font-bold text-[var(--color-accent-beige)]">{stats.totalTemplates}</p>
-                    <p className="text-sm text-[var(--color-text-muted)]">Plantillas</p>
-                </Card>
-            </div>
-        </PageContainer>
+            <AuraGrid cols={3} gap="md">
+                <AuraCard
+                    hover
+                    className="text-center py-6 cursor-pointer"
+                    onClick={() => navigate('/analytics?tab=training')}
+                >
+                    <p className="text-3xl font-bold text-[var(--color-accent-gold)] font-mono">
+                        {stats.totalSessions}
+                    </p>
+                    <p className="text-sm text-gray-500 mt-1">Total Sessions</p>
+                </AuraCard>
+                <AuraCard
+                    hover
+                    className="text-center py-6 cursor-pointer"
+                    onClick={() => navigate('/analytics?tab=training')}
+                >
+                    <p className="text-3xl font-bold text-[var(--color-accent-gold)] font-mono">
+                        {(stats.totalVolume / 1000).toFixed(0)}k
+                    </p>
+                    <p className="text-sm text-gray-500 mt-1">Total Volume (kg)</p>
+                </AuraCard>
+                <AuraCard
+                    hover
+                    className="text-center py-6 cursor-pointer"
+                    onClick={() => navigate('/templates')}
+                >
+                    <p className="text-3xl font-bold text-[var(--color-accent-gold)] font-mono">
+                        {stats.totalTemplates}
+                    </p>
+                    <p className="text-sm text-gray-500 mt-1">Templates</p>
+                </AuraCard>
+            </AuraGrid>
+
+            {/* Training Plan Modal */}
+            <TrainingPlanModal
+                isOpen={showTrainingPlanModal}
+                onClose={() => setShowTrainingPlanModal(false)}
+                onPlanCreated={() => {
+                    // Plan created, modal will close automatically
+                }}
+            />
+        </div>
     );
 }

@@ -5,15 +5,25 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PageContainer } from '../components/layout';
-import { Card, Select, Tabs, StatCard, Badge } from '../components/ui';
-import { useSessions, useAthletes, useExercises } from '../store/store';
+import { Select, Tabs, Badge } from '../components/ui';
+import { AuraCard, AuraMetric } from '../components/ui/aura';
+import { useSessions, useAthletes, useExercises, useTrainingPlans } from '../store/store';
 import { getSessionLog } from '../utils/sessionLog';
+import { getWeeklyIntensityFatigue } from '../utils/metrics';
+import {
+    filterCompletedSessions,
+    calculateTotalVolume,
+    calculateTotalDuration,
+    calculateAvgDuration,
+} from '../utils/dashboardMetrics';
+import { AIInsightsPanel } from '../components/common';
 
 export function AnalyticsView() {
     const navigate = useNavigate();
     const sessions = useSessions();
     const athletes = useAthletes();
     const exercises = useExercises();
+    const trainingPlans = useTrainingPlans();
 
     const [selectedAthlete, setSelectedAthlete] = useState<string>('all');
     const [timeRange, setTimeRange] = useState<string>('month');
@@ -32,14 +42,14 @@ export function AnalyticsView() {
             .filter(s => s.completedAt && new Date(s.completedAt) >= cutoff);
     }, [sessions, selectedAthlete, timeRange]);
 
-    // Métricas principales
+    // Métricas principales - using centralized calculations
     const metrics = useMemo(() => {
-        const totalVolume = filteredSessions.reduce((sum, s) => sum + (s.totalVolume || 0), 0);
+        const totalVolume = calculateTotalVolume(filteredSessions);
         const totalSets = filteredSessions.reduce((sum, s) => sum + (s.totalSets || 0), 0);
         const totalReps = filteredSessions.reduce((sum, s) => sum + (s.totalReps || 0), 0);
-        const totalDuration = filteredSessions.reduce((sum, s) => sum + (s.durationMinutes || 0), 0);
+        const totalDuration = calculateTotalDuration(filteredSessions);
         const avgVolume = filteredSessions.length > 0 ? Math.round(totalVolume / filteredSessions.length) : 0;
-        const avgDuration = filteredSessions.length > 0 ? Math.round(totalDuration / filteredSessions.length) : 0;
+        const avgDuration = calculateAvgDuration(filteredSessions);
 
         return { totalVolume, totalSets, totalReps, totalDuration, avgVolume, avgDuration, sessionCount: filteredSessions.length };
     }, [filteredSessions]);
@@ -119,14 +129,14 @@ export function AnalyticsView() {
                 <div className="space-y-6">
                     {/* Stats Grid */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <StatCard label="Sesiones" value={metrics.sessionCount} icon="📋" />
-                        <StatCard label="Volumen Total" value={`${(metrics.totalVolume / 1000).toFixed(1)}k kg`} icon="🏋️" />
-                        <StatCard label="Series Totales" value={metrics.totalSets} icon="🔢" />
-                        <StatCard label="Tiempo Total" value={`${Math.round(metrics.totalDuration / 60)}h`} icon="⏱️" />
+                        <AuraMetric label="Sesiones" value={metrics.sessionCount} icon="📋" />
+                        <AuraMetric label="Volumen Total" value={`${(metrics.totalVolume / 1000).toFixed(1)}k kg`} icon="🏋️" />
+                        <AuraMetric label="Series Totales" value={metrics.totalSets} icon="🔢" />
+                        <AuraMetric label="Tiempo Total" value={`${Math.round(metrics.totalDuration / 60)}h`} icon="⏱️" />
                     </div>
 
                     {/* Volume Chart (Simple bar) */}
-                    <Card>
+                    <AuraCard>
                         <h3 className="text-lg font-semibold mb-4">📈 Volumen Semanal</h3>
                         {weeklyVolume.length === 0 ? (
                             <p className="text-center text-[var(--color-text-muted)] py-8">Sin datos para el período seleccionado</p>
@@ -150,18 +160,165 @@ export function AnalyticsView() {
                                 })}
                             </div>
                         )}
-                    </Card>
+                    </AuraCard>
+
+                    {/* 1RM Evolution (Sistema 1RM) */}
+                    <AuraCard>
+                        <h3 className="text-lg font-semibold mb-4">🏆 1RM Evolution</h3>
+                        {(() => {
+                            // Collect 1RM data from all athletes
+                            const oneRMData: Array<{ exercise: string, value: number, athlete: string }> = [];
+                            athletes.forEach(athlete => {
+                                if (athlete.oneRMRecords) {
+                                    Object.entries(athlete.oneRMRecords).forEach(([exId, record]) => {
+                                        const exercise = exercises.find(e => e.id === exId);
+                                        if (record.currentOneRM && exercise) {
+                                            oneRMData.push({
+                                                exercise: exercise.name,
+                                                value: record.currentOneRM,
+                                                athlete: athlete.name,
+                                            });
+                                        }
+                                    });
+                                }
+                            });
+
+                            if (oneRMData.length === 0) {
+                                return <p className="text-center text-[var(--color-text-muted)] py-8">No hay datos de 1RM registrados</p>;
+                            }
+
+                            // Group by exercise and show top 5
+                            const byExercise = oneRMData.reduce((acc, item) => {
+                                if (!acc[item.exercise]) acc[item.exercise] = [];
+                                acc[item.exercise].push(item);
+                                return acc;
+                            }, {} as Record<string, typeof oneRMData>);
+
+                            const topOneRM = Object.entries(byExercise)
+                                .map(([name, records]) => ({
+                                    name,
+                                    maxValue: Math.max(...records.map(r => r.value)),
+                                }))
+                                .sort((a, b) => b.maxValue - a.maxValue)
+                                .slice(0, 5);
+
+                            const maxVal = Math.max(...topOneRM.map(e => e.maxValue));
+
+                            return (
+                                <div className="space-y-3">
+                                    {topOneRM.map(ex => (
+                                        <div key={ex.name} className="flex items-center gap-3">
+                                            <span className="text-sm text-[var(--color-text-muted)] w-32 truncate">{ex.name}</span>
+                                            <div className="flex-1 h-6 bg-[var(--color-bg-tertiary)] rounded-full overflow-hidden">
+                                                <div
+                                                    className="h-full bg-gradient-to-r from-[var(--color-accent-gold)] to-[var(--color-accent-beige)] rounded-full"
+                                                    style={{ width: `${(ex.maxValue / maxVal) * 100}%` }}
+                                                />
+                                            </div>
+                                            <span className="text-sm font-mono text-[var(--color-accent-beige)] w-16 text-right">
+                                                {ex.maxValue}kg
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            );
+                        })()}
+                    </AuraCard>
+
+                    {/* Intensity Metrics (Sistema 1RM) */}
+                    <AuraCard>
+                        <h3 className="text-lg font-semibold mb-4">💪 Intensity Metrics</h3>
+                        {(() => {
+                            let totalIntensity = 0;
+                            let intensityCount = 0;
+                            let highIntensitySets = 0;
+                            let totalSets = 0;
+
+                            filteredSessions.forEach(session => {
+                                session.exercises.forEach(ex => {
+                                    ex.sets.forEach(set => {
+                                        if (set.isCompleted) {
+                                            totalSets++;
+                                            const intensity = set.intensity ?? set.rpe ?? 7;
+                                            totalIntensity += intensity;
+                                            intensityCount++;
+                                            if (intensity >= 8) highIntensitySets++;
+                                        }
+                                    });
+                                });
+                            });
+
+                            const avgIntensity = intensityCount > 0 ? (totalIntensity / intensityCount).toFixed(1) : '-';
+                            const highIntensityPercent = totalSets > 0 ? Math.round((highIntensitySets / totalSets) * 100) : 0;
+
+                            return (
+                                <div className="grid grid-cols-3 gap-4">
+                                    <div className="text-center p-4 bg-[var(--color-bg-tertiary)] rounded-lg">
+                                        <p className="text-2xl font-mono text-[var(--color-accent-gold)]">{avgIntensity}</p>
+                                        <p className="text-xs text-[var(--color-text-muted)]">Avg Intensity</p>
+                                    </div>
+                                    <div className="text-center p-4 bg-[var(--color-bg-tertiary)] rounded-lg">
+                                        <p className="text-2xl font-mono text-red-400">{highIntensityPercent}%</p>
+                                        <p className="text-xs text-[var(--color-text-muted)]">High (8+)</p>
+                                    </div>
+                                    <div className="text-center p-4 bg-[var(--color-bg-tertiary)] rounded-lg">
+                                        <p className="text-2xl font-mono">{totalSets}</p>
+                                        <p className="text-xs text-[var(--color-text-muted)]">Total Sets</p>
+                                    </div>
+                                </div>
+                            );
+                        })()}
+                    </AuraCard>
+
+                    {/* Fatigue vs Intensity Trend (Sprint Intensity-Fatigue) */}
+                    <AuraCard>
+                        <h3 className="text-lg font-semibold mb-4">🏃 Fatiga vs Intensidad</h3>
+                        {(() => {
+                            const weeklyData = getWeeklyIntensityFatigue(filteredSessions);
+
+                            if (weeklyData.count === 0) {
+                                return <p className="text-center text-[var(--color-text-muted)] py-8">Sin datos de fatiga/intensidad para el período</p>;
+                            }
+
+                            return (
+                                <div className="grid grid-cols-3 gap-4">
+                                    <div className="text-center p-4 bg-[var(--color-bg-tertiary)] rounded-lg">
+                                        <p className="text-2xl font-mono text-[var(--color-accent-gold)]">
+                                            {weeklyData.avgIntensity?.toFixed(1) ?? '-'}
+                                        </p>
+                                        <p className="text-xs text-[var(--color-text-muted)]">Intensidad Media</p>
+                                    </div>
+                                    <div className="text-center p-4 bg-[var(--color-bg-tertiary)] rounded-lg">
+                                        <p className="text-2xl font-mono text-blue-400">
+                                            {weeklyData.avgFatigue?.toFixed(1) ?? '-'}
+                                        </p>
+                                        <p className="text-xs text-[var(--color-text-muted)]">Fatiga Previa Media</p>
+                                    </div>
+                                    <div className="text-center p-4 bg-[var(--color-bg-tertiary)] rounded-lg">
+                                        <p className="text-2xl font-mono">{weeklyData.count}</p>
+                                        <p className="text-xs text-[var(--color-text-muted)]">Sesiones con Datos</p>
+                                    </div>
+                                </div>
+                            );
+                        })()}
+                    </AuraCard>
+
+                    {/* AI Insights Panel */}
+                    <AIInsightsPanel
+                        sessions={filteredSessions}
+                        activePlan={selectedAthlete !== 'all' ? trainingPlans.find(p => p.athleteId === selectedAthlete && p.isActive) : undefined}
+                    />
 
                     {/* Averages */}
                     <div className="grid grid-cols-2 gap-4">
-                        <Card className="text-center py-6">
+                        <AuraCard className="text-center py-6">
                             <p className="text-3xl font-bold text-[var(--color-accent-beige)]">{metrics.avgVolume.toLocaleString()}</p>
                             <p className="text-sm text-[var(--color-text-muted)]">Volumen medio/sesión (kg)</p>
-                        </Card>
-                        <Card className="text-center py-6">
+                        </AuraCard>
+                        <AuraCard className="text-center py-6">
                             <p className="text-3xl font-bold text-[var(--color-accent-beige)]">{metrics.avgDuration}</p>
                             <p className="text-sm text-[var(--color-text-muted)]">Duración media (min)</p>
-                        </Card>
+                        </AuraCard>
                     </div>
                 </div>
             ),
@@ -172,7 +329,7 @@ export function AnalyticsView() {
             icon: '💪',
             content: (
                 <div className="space-y-6">
-                    <Card>
+                    <AuraCard>
                         <h3 className="text-lg font-semibold mb-4">🏆 Top Ejercicios por Volumen</h3>
                         {topExercises.length === 0 ? (
                             <p className="text-center text-[var(--color-text-muted)] py-8">Sin datos</p>
@@ -197,10 +354,10 @@ export function AnalyticsView() {
                                 ))}
                             </div>
                         )}
-                    </Card>
+                    </AuraCard>
 
                     {/* Ejercicios disponibles */}
-                    <Card>
+                    <AuraCard>
                         <h3 className="text-lg font-semibold mb-4">📋 Biblioteca de Ejercicios</h3>
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                             {exercises.map(ex => (
@@ -213,7 +370,7 @@ export function AnalyticsView() {
                                 <p className="col-span-full text-center text-[var(--color-text-muted)] py-4">Sin ejercicios registrados</p>
                             )}
                         </div>
-                    </Card>
+                    </AuraCard>
                 </div>
             ),
         },
@@ -227,7 +384,7 @@ export function AnalyticsView() {
                         const athleteSessions = sessions.filter(s => s.athleteId === athlete.id && s.status === 'completed');
                         const volume = athleteSessions.reduce((sum, s) => sum + (s.totalVolume || 0), 0);
                         return (
-                            <Card key={athlete.id} className="flex items-center justify-between">
+                            <AuraCard key={athlete.id} className="flex items-center justify-between">
                                 <div className="flex items-center gap-4">
                                     <div className="w-12 h-12 rounded-full bg-[var(--color-accent-gold)]/20 flex items-center justify-center text-lg font-bold text-[var(--color-accent-gold)]">
                                         {athlete.name.charAt(0)}
@@ -241,13 +398,13 @@ export function AnalyticsView() {
                                     <p className="text-xl font-bold text-[var(--color-accent-beige)]">{(volume / 1000).toFixed(1)}k</p>
                                     <p className="text-xs text-[var(--color-text-muted)]">kg total</p>
                                 </div>
-                            </Card>
+                            </AuraCard>
                         );
                     })}
                     {athletes.length === 0 && (
-                        <Card>
+                        <AuraCard>
                             <p className="text-center text-[var(--color-text-muted)] py-8">Sin atletas registrados</p>
-                        </Card>
+                        </AuraCard>
                     )}
                 </div>
             ),
@@ -258,7 +415,7 @@ export function AnalyticsView() {
             icon: '📜',
             content: (
                 <div className="space-y-4">
-                    <Card>
+                    <AuraCard>
                         <div className="flex items-center justify-between mb-4">
                             <h3 className="text-lg font-semibold">📜 Historial de Sesiones</h3>
                             <span className="text-sm text-[var(--color-text-muted)]">
@@ -311,7 +468,7 @@ export function AnalyticsView() {
                                 ))}
                             </div>
                         )}
-                    </Card>
+                    </AuraCard>
                 </div>
             ),
         },

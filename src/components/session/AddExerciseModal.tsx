@@ -4,7 +4,9 @@
  */
 
 import { useState, useMemo } from 'react';
-import { Modal, Input, Select, Button, EmptyState } from '../ui';
+import { Modal, Input, Select, Button } from '../ui';
+import { AuraEmptyState } from '../ui/aura';
+import { AIQuotaIndicator } from '../common';
 import { useExerciseSuggestions, useAIEnabled } from '../../ai';
 import type { Exercise, ExerciseEntry, MuscleGroup, ExerciseCategory } from '../../types/types';
 
@@ -150,16 +152,19 @@ export function AddExerciseModal({
                 />
 
                 {/* Acciones principales */}
-                <div className="flex gap-2">
+                <div className="flex items-center gap-2">
                     {aiEnabled && (
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={handleRequestSuggestions}
-                            disabled={isLoadingSuggestions}
-                        >
-                            {isLoadingSuggestions ? '⏳ Cargando...' : '💡 Sugerir con IA'}
-                        </Button>
+                        <>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={handleRequestSuggestions}
+                                disabled={isLoadingSuggestions}
+                            >
+                                {isLoadingSuggestions ? '⏳ Cargando...' : '💡 Sugerir con IA'}
+                            </Button>
+                            <AIQuotaIndicator size="sm" showLabel={false} />
+                        </>
                     )}
                     <Button
                         variant="ghost"
@@ -233,7 +238,15 @@ export function AddExerciseModal({
                 )}
 
                 {suggestionError && (
-                    <p className="text-sm text-red-400 p-2 rounded bg-red-900/20">{suggestionError}</p>
+                    <div className="p-3 bg-yellow-900/20 border border-yellow-600/30 rounded-lg">
+                        <p className="text-yellow-400 text-sm">
+                            ⚠️ {suggestionError.toLowerCase().includes('429') ||
+                                suggestionError.toLowerCase().includes('quota') ||
+                                suggestionError.toLowerCase().includes('resource_exhausted')
+                                ? 'Cuota de IA agotada. Prueba más tarde o crea el ejercicio manualmente.'
+                                : suggestionError}
+                        </p>
+                    </div>
                 )}
 
                 {/* Lista de ejercicios existentes */}
@@ -242,10 +255,11 @@ export function AddExerciseModal({
                         Ejercicios ({filteredExercises.length})
                     </h4>
                     {filteredExercises.length === 0 ? (
-                        <EmptyState
+                        <AuraEmptyState
                             icon="📋"
                             title={searchQuery ? 'Sin resultados' : 'Sin ejercicios'}
                             description={searchQuery ? 'Prueba con otro término o crea uno nuevo.' : 'Crea un ejercicio nuevo para comenzar.'}
+                            size="sm"
                         />
                     ) : (
                         <div className="space-y-1 max-h-64 overflow-y-auto">

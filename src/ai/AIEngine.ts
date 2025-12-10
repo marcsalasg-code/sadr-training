@@ -82,6 +82,13 @@ class AIEngineClass {
             const response = await provider.complete<T>(request);
             const duration = Date.now() - startTime;
 
+            // Check for quota errors and fallback to mock
+            if (!response.success && this.isQuotaError(response.error)) {
+                this.log('fallback', provider.name, request.type, true,
+                    'Quota exceeded, falling back to mock provider');
+                return this.mockProvider.complete<T>(request);
+            }
+
             this.log(
                 'response',
                 provider.name,
@@ -97,6 +104,13 @@ class AIEngineClass {
             const duration = Date.now() - startTime;
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 
+            // Check for quota errors and fallback to mock
+            if (this.isQuotaError(errorMessage)) {
+                this.log('fallback', provider.name, request.type, true,
+                    'Quota exceeded, falling back to mock provider');
+                return this.mockProvider.complete<T>(request);
+            }
+
             this.log('error', provider.name, request.type, false, errorMessage, duration);
 
             return {
@@ -104,6 +118,17 @@ class AIEngineClass {
                 error: errorMessage,
             };
         }
+    }
+
+    /**
+     * Check if error is related to API quota/rate limiting
+     */
+    private isQuotaError(error?: string): boolean {
+        if (!error) return false;
+        const quotaPatterns = ['429', 'quota', 'RESOURCE_EXHAUSTED', 'rate limit'];
+        return quotaPatterns.some(pattern =>
+            error.toLowerCase().includes(pattern.toLowerCase())
+        );
     }
 
     async testConnection(): Promise<boolean> {

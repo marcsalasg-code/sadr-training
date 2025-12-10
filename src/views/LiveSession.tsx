@@ -1,386 +1,358 @@
 /**
  * LiveSession - Vista de sesión en vivo
  * Registro de series en tiempo real con cronómetro de descanso
- * Incluye sugerencias de carga IA
+ * Rediseñado con UI Aura
+ * 
+ * REFACTORED: Usa useLiveSession hook para toda la lógica de negocio
  */
 
-import { useState, useMemo, useEffect } from 'react';
+import { Modal } from '../components/ui';
+import {
+    AuraGrid,
+    AuraPanel,
+    AuraCard,
+    AuraButton,
+    AuraBadge,
+    AuraEmptyState,
+} from '../components/ui/aura';
+import { SetRow, AddExerciseModal, FatiguePrompt } from '../components/session';
+import { OneRMHint } from '../components/common/OneRMHint';
+import { LoadSuggestion } from '../components/common/LoadSuggestion';
+import { useTrainingStore, useSettings, useExercises } from '../store/store';
+import { useLiveSession, formatTime } from '../hooks';
 import { useParams, useNavigate } from 'react-router-dom';
-import { PageContainer } from '../components/layout';
-import { Card, Button, Badge, Modal, EmptyState } from '../components/ui';
-import { SetRow, AddExerciseModal } from '../components/session';
-import { useTrainingStore, useSettings, useExercises, useSessions } from '../store/store';
-import { useRestTimer, formatTime } from '../hooks';
-import type { SetEntry, ExerciseEntry } from '../types/types';
 
 export function LiveSession() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
-    const { getSession, updateSession, getExercise, addExercise } = useTrainingStore();
+    const { addExercise, getAthlete } = useTrainingStore();
     const exercises = useExercises();
-    const allSessions = useSessions();
     const settings = useSettings();
 
-    const session = getSession(id || '');
-    const restTimer = useRestTimer(settings.defaultRestSeconds);
+    // Use the hook for all session logic
+    const {
+        session,
+        activeExercise,
+        exerciseInfo,
+        liveStats,
+        exerciseHistory,
+        isMultiAthlete,
+        sessionAthletes,
+        activeAthleteId,
+        setActiveAthleteId,
+        activeExerciseIndex,
+        setActiveExerciseIndex,
+        showFatiguePrompt,
+        showAddExerciseModal,
+        setShowAddExerciseModal,
+        showFinishModal,
+        setShowFinishModal,
+        showRemoveExerciseModal,
+        setShowRemoveExerciseModal,
+        showCancelModal,
+        setShowCancelModal,
+        showExitModal,
+        setShowExitModal,
+        restTimer,
+        handleCompleteSet,
+        handleAddSet,
+        handleRemoveSet,
+        handleUncompleteSet,
+        handleAddExercise,
+        handleRemoveExercise,
+        handleFinishSession,
+        handleCancelSession,
+        handleExitClick,
+        handleFatigueConfirm,
+        handleFatigueSkip,
+        getExercise,
+    } = useLiveSession(id);
 
-    const [activeExerciseIndex, setActiveExerciseIndex] = useState(0);
-    const [showAddExerciseModal, setShowAddExerciseModal] = useState(false);
-    const [showFinishModal, setShowFinishModal] = useState(false);
-    const [showRemoveExerciseModal, setShowRemoveExerciseModal] = useState(false);
-    const [showCancelModal, setShowCancelModal] = useState(false);
-    const [showExitModal, setShowExitModal] = useState(false);
-    const [sessionStartTime] = useState(() => session?.startedAt ? new Date(session.startedAt) : new Date());
-
-    // Iniciar sesión si no está iniciada
-    useEffect(() => {
-        if (session && session.status === 'planned') {
-            updateSession(session.id, {
-                status: 'in_progress',
-                startedAt: new Date().toISOString(),
-            });
-        }
-    }, [session, updateSession]);
-
-    // Calcular estadísticas en tiempo real
-    const liveStats = useMemo(() => {
-        if (!session) return { totalSets: 0, completedSets: 0, totalVolume: 0 };
-
-        let totalSets = 0;
-        let completedSets = 0;
-        let totalVolume = 0;
-
-        session.exercises.forEach(ex => {
-            ex.sets.forEach(set => {
-                totalSets++;
-                if (set.isCompleted) {
-                    completedSets++;
-                    totalVolume += (set.actualWeight || 0) * (set.actualReps || 0);
-                }
-            });
-        });
-
-        return { totalSets, completedSets, totalVolume };
-    }, [session]);
-
-    // Historial del ejercicio actual para predicciones IA
-    const exerciseHistory = useMemo(() => {
-        if (!session) return [];
-        const activeExercise = session.exercises[activeExerciseIndex];
-        if (!activeExercise) return [];
-
-        // Buscar sets completados anteriormente para este ejercicio
-        const history: Array<{ weight: number; reps: number; date: string }> = [];
-
-        allSessions
-            .filter(s => s.id !== session.id && s.athleteId === session.athleteId && s.status === 'completed')
-            .forEach(s => {
-                s.exercises.forEach(ex => {
-                    if (ex.exerciseId === activeExercise.exerciseId) {
-                        ex.sets.filter(set => set.isCompleted).forEach(set => {
-                            history.push({
-                                weight: set.actualWeight || 0,
-                                reps: set.actualReps || 0,
-                                date: s.completedAt || s.createdAt,
-                            });
-                        });
-                    }
-                });
-            });
-
-        return history.slice(-10); // Últimos 10 sets
-    }, [session, activeExerciseIndex, allSessions]);
-
+    // Early return if session not found
     if (!session) {
         return (
-            <PageContainer title="Sesión no encontrada" subtitle="">
-                <Card>
-                    <EmptyState
+            <div className="p-8 max-w-6xl mx-auto">
+                <AuraPanel>
+                    <AuraEmptyState
                         icon="❌"
-                        title="Sesión no encontrada"
-                        description="La sesión que buscas no existe."
-                        action={{ label: 'Volver a Sesiones', onClick: () => navigate('/sessions') }}
+                        title="Session not found"
+                        description="The session you're looking for doesn't exist."
+                        action={{ label: 'Back to Sessions', onClick: () => navigate('/sessions') }}
                     />
-                </Card>
-            </PageContainer>
+                </AuraPanel>
+            </div>
         );
     }
 
-    // Ejercicio activo
-    const activeExercise = session.exercises[activeExerciseIndex];
-    const exerciseInfo = activeExercise ? getExercise(activeExercise.exerciseId) : null;
-
-    // Completar una serie
-    const handleCompleteSet = (exerciseIndex: number, setIndex: number, data: Partial<SetEntry>) => {
-        const updatedExercises = [...session.exercises];
-        const set = updatedExercises[exerciseIndex].sets[setIndex];
-
-        updatedExercises[exerciseIndex].sets[setIndex] = {
-            ...set,
-            ...data,
-            isCompleted: true,
-            completedAt: new Date().toISOString(),
-        };
-
-        updateSession(session.id, { exercises: updatedExercises });
-
-        // Auto-start rest timer si está habilitado
-        if (settings.autoStartRest) {
-            restTimer.start(set.restSeconds || settings.defaultRestSeconds);
-        }
-    };
-
-    // Añadir serie a un ejercicio
-    const handleAddSet = (exerciseIndex: number) => {
-        const updatedExercises = [...session.exercises];
-        const exercise = updatedExercises[exerciseIndex];
-        const lastSet = exercise.sets[exercise.sets.length - 1];
-
-        const newSet: SetEntry = {
-            id: crypto.randomUUID(),
-            setNumber: exercise.sets.length + 1,
-            type: 'working',
-            targetReps: lastSet?.targetReps || 10,
-            targetWeight: lastSet?.actualWeight || lastSet?.targetWeight || 0,
-            restSeconds: settings.defaultRestSeconds,
-            isCompleted: false,
-        };
-
-        updatedExercises[exerciseIndex].sets.push(newSet);
-        updateSession(session.id, { exercises: updatedExercises });
-    };
-
-    // Eliminar serie de un ejercicio
-    const handleRemoveSet = (exerciseIndex: number, setIndex: number) => {
-        const updatedExercises = [...session.exercises];
-        const exercise = updatedExercises[exerciseIndex];
-
-        // No permitir eliminar la última serie
-        if (exercise.sets.length <= 1) return;
-
-        // Filtrar la serie y renumerar
-        exercise.sets = exercise.sets
-            .filter((_, i) => i !== setIndex)
-            .map((set, i) => ({ ...set, setNumber: i + 1 }));
-
-        updateSession(session.id, { exercises: updatedExercises });
-    };
-
-    // Desmarcar serie completada (undo)
-    const handleUncompleteSet = (exerciseIndex: number, setIndex: number) => {
-        const updatedExercises = [...session.exercises];
-        updatedExercises[exerciseIndex].sets[setIndex] = {
-            ...updatedExercises[exerciseIndex].sets[setIndex],
-            isCompleted: false,
-            completedAt: undefined,
-            actualWeight: undefined,
-            actualReps: undefined,
-        };
-        updateSession(session.id, { exercises: updatedExercises });
-    };
-
-    // Añadir ejercicio
-    const handleAddExercise = (exerciseId: string) => {
-        const newExercise: ExerciseEntry = {
-            id: crypto.randomUUID(),
-            exerciseId,
-            order: session.exercises.length,
-            sets: [{
-                id: crypto.randomUUID(),
-                setNumber: 1,
-                type: 'working',
-                targetReps: 10,
-                restSeconds: settings.defaultRestSeconds,
-                isCompleted: false,
-            }],
-        };
-
-        updateSession(session.id, {
-            exercises: [...session.exercises, newExercise],
-        });
-        setShowAddExerciseModal(false);
-        setActiveExerciseIndex(session.exercises.length);
-    };
-
-    // Eliminar ejercicio de la sesión
-    const handleRemoveExercise = (exerciseIndex: number) => {
-        const updatedExercises = session.exercises
-            .filter((_, i) => i !== exerciseIndex)
-            .map((ex, i) => ({ ...ex, order: i }));
-
-        updateSession(session.id, { exercises: updatedExercises });
-
-        // Ajustar índice activo
-        if (exerciseIndex <= activeExerciseIndex && activeExerciseIndex > 0) {
-            setActiveExerciseIndex(prev => prev - 1);
-        } else if (updatedExercises.length === 0) {
-            setActiveExerciseIndex(0);
-        }
-
-        setShowRemoveExerciseModal(false);
-    };
-
-    // Finalizar sesión
-    const handleFinishSession = () => {
-        const endTime = new Date();
-        const durationMinutes = Math.round((endTime.getTime() - sessionStartTime.getTime()) / 60000);
-
-        updateSession(session.id, {
-            status: 'completed',
-            completedAt: endTime.toISOString(),
-            durationMinutes,
-            totalVolume: liveStats.totalVolume,
-            totalSets: liveStats.completedSets,
-            totalReps: session.exercises.reduce((sum, ex) =>
-                sum + ex.sets.reduce((s, set) => s + (set.actualReps || 0), 0), 0
-            ),
-        });
-
-        navigate('/sessions');
-    };
-
-    // Cancelar sesión
-    const handleCancelSession = () => {
-        updateSession(session.id, { status: 'cancelled' });
-        navigate('/sessions');
-    };
-
-    // Salir con confirmación
-    const handleExitClick = () => {
-        if (session.status === 'in_progress' && liveStats.completedSets > 0) {
-            setShowExitModal(true);
-        } else {
-            navigate('/sessions');
-        }
-    };
-
     return (
-        <PageContainer
-            title={session.name}
-            subtitle={session.status === 'in_progress' ? '🔴 En curso' : 'Sesión'}
-            actions={
-                <div className="flex items-center gap-3">
-                    <Button variant="ghost" onClick={handleExitClick}>
-                        ← Salir
-                    </Button>
+        <div className="p-8 space-y-6 max-w-6xl mx-auto">
+            {/* Header */}
+            <header className="flex justify-between items-start">
+                <div>
+                    <div className="flex items-center gap-3 mb-1">
+                        {session.status === 'in_progress' && (
+                            <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full bg-[var(--color-accent-gold)] animate-pulse" />
+                                <span className="text-[10px] font-bold text-[var(--color-accent-gold)] uppercase tracking-widest">
+                                    Live Session
+                                </span>
+                            </div>
+                        )}
+                        {isMultiAthlete && (
+                            <AuraBadge variant="muted" size="sm">Multi-Athlete</AuraBadge>
+                        )}
+                    </div>
+                    <h1 className="text-2xl text-white font-semibold tracking-tight">{session.name}</h1>
+
+                    {/* Multi-Athlete Selector */}
+                    {isMultiAthlete && sessionAthletes.length > 1 && (
+                        <div className="flex gap-2 mt-2">
+                            {sessionAthletes.map(athlete => (
+                                <button
+                                    key={athlete.id}
+                                    onClick={() => setActiveAthleteId(athlete.id)}
+                                    className={`px-3 py-1 rounded-full text-sm font-medium transition-all ${activeAthleteId === athlete.id
+                                        ? 'bg-[var(--color-accent-gold)] text-black'
+                                        : 'bg-[#1A1A1A] text-gray-400 hover:text-white hover:bg-[#2A2A2A]'
+                                        }`}
+                                >
+                                    {athlete.name}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </div>
+                <div className="flex items-center gap-2">
+                    <AuraButton variant="ghost" onClick={handleExitClick}>
+                        ← Exit
+                    </AuraButton>
                     {session.status === 'in_progress' && (
-                        <Button
+                        <AuraButton
                             variant="ghost"
-                            className="text-red-400 hover:bg-red-400/10"
+                            className="!text-red-400 hover:!bg-red-400/10"
                             onClick={() => setShowCancelModal(true)}
                         >
-                            ✕ Cancelar
-                        </Button>
+                            Cancel
+                        </AuraButton>
                     )}
-                    <Button onClick={() => setShowFinishModal(true)}>
-                        ✓ Finalizar
-                    </Button>
+                    <AuraButton variant="gold" onClick={() => setShowFinishModal(true)}>
+                        Finish ✓
+                    </AuraButton>
                 </div>
-            }
-        >
+            </header>
+
+            {/* Pre-Session Fatigue Prompt */}
+            {showFatiguePrompt && (
+                <FatiguePrompt
+                    onConfirm={handleFatigueConfirm}
+                    onSkip={handleFatigueSkip}
+                />
+            )}
+
             {/* Stats Bar */}
-            <div className="grid grid-cols-4 gap-4 mb-6">
-                <Card className="text-center py-3">
-                    <p className="text-2xl font-bold text-[var(--color-accent-beige)]">
-                        {liveStats.completedSets}/{liveStats.totalSets}
-                    </p>
-                    <p className="text-xs text-[var(--color-text-muted)]">Series</p>
-                </Card>
-                <Card className="text-center py-3">
-                    <p className="text-2xl font-bold text-[var(--color-accent-beige)]">
-                        {liveStats.totalVolume.toLocaleString()}
-                    </p>
-                    <p className="text-xs text-[var(--color-text-muted)]">Kg Total</p>
-                </Card>
-                <Card className="text-center py-3">
-                    <p className="text-2xl font-bold text-[var(--color-accent-beige)]">
-                        {session.exercises.length}
-                    </p>
-                    <p className="text-xs text-[var(--color-text-muted)]">Ejercicios</p>
-                </Card>
+            <AuraGrid cols={4} gap="md">
+                {/* Sets Progress */}
+                <AuraCard className="relative overflow-hidden">
+                    <div className="relative z-10">
+                        <span className="text-[10px] text-gray-500 uppercase tracking-widest">Sets</span>
+                        <div className="flex items-baseline gap-2 mt-1">
+                            <span className="text-2xl font-mono text-white">{liveStats.completedSets}</span>
+                            <span className="text-sm text-gray-500">/ {liveStats.totalSets}</span>
+                        </div>
+                    </div>
+                    {/* Progress bar */}
+                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-[#222]">
+                        <div
+                            className="h-full bg-[var(--color-accent-gold)] transition-all"
+                            style={{ width: `${liveStats.progressPercent}%` }}
+                        />
+                    </div>
+                </AuraCard>
+
+                {/* Volume */}
+                <AuraCard>
+                    <span className="text-[10px] text-gray-500 uppercase tracking-widest">Volume</span>
+                    <div className="mt-1">
+                        <span className="text-2xl font-mono text-white">
+                            {liveStats.totalVolume >= 1000
+                                ? `${(liveStats.totalVolume / 1000).toFixed(1)}k`
+                                : liveStats.totalVolume}
+                        </span>
+                        <span className="text-sm text-gray-500 ml-1">kg</span>
+                    </div>
+                </AuraCard>
+
+                {/* Exercises */}
+                <AuraCard>
+                    <span className="text-[10px] text-gray-500 uppercase tracking-widest">Exercises</span>
+                    <div className="mt-1">
+                        <span className="text-2xl font-mono text-white">{session.exercises.length}</span>
+                    </div>
+                </AuraCard>
+
                 {/* Rest Timer */}
-                <Card
-                    className={`text-center py-3 cursor-pointer transition-all ${restTimer.isRunning ? 'border-[var(--color-accent-gold)] shadow-[var(--shadow-glow-gold)]' : ''
-                        } ${restTimer.isFinished ? 'border-green-500 bg-green-500/10' : ''}`}
-                    onClick={() => restTimer.isRunning ? restTimer.pause() : restTimer.start()}
+                <AuraCard
+                    className={`transition-all ${restTimer.isRunning
+                        ? 'border-[var(--color-accent-gold)] shadow-[0_0_20px_rgba(212,194,154,0.15)]'
+                        : ''
+                        } ${restTimer.isFinished ? '!border-green-500 !bg-green-500/5' : ''}`}
                 >
-                    <p className={`text-2xl font-bold font-mono ${restTimer.isFinished ? 'text-green-400' :
-                        restTimer.isRunning ? 'text-[var(--color-accent-gold)]' : 'text-[var(--color-text-secondary)]'
-                        }`}>
-                        {formatTime(restTimer.seconds)}
-                    </p>
-                    <p className="text-xs text-[var(--color-text-muted)]">
-                        {restTimer.isFinished ? '¡Listo!' : restTimer.isRunning ? 'Descanso' : 'Tap para iniciar'}
-                    </p>
-                </Card>
-            </div>
+                    <span className="text-[10px] text-gray-500 uppercase tracking-widest">
+                        {restTimer.isFinished ? 'Ready!' : restTimer.isRunning ? 'Rest' : 'Timer'}
+                    </span>
+                    <div className="flex items-center justify-center gap-3 mt-1">
+                        {/* Minus button */}
+                        <button
+                            onClick={() => restTimer.setDuration(Math.max(0, restTimer.seconds - 15))}
+                            className="w-8 h-8 rounded-full bg-[#1A1A1A] text-white hover:bg-[#2A2A2A] flex items-center justify-center text-lg font-bold transition-colors"
+                            title="-15s"
+                        >
+                            −
+                        </button>
+
+                        {/* Timer display (clickable to start/pause) */}
+                        <button
+                            onClick={() => restTimer.isRunning ? restTimer.pause() : restTimer.start()}
+                            className={`text-2xl font-mono cursor-pointer hover:opacity-80 transition-opacity ${restTimer.isFinished
+                                ? 'text-green-400'
+                                : restTimer.isRunning
+                                    ? 'text-[var(--color-accent-gold)]'
+                                    : 'text-gray-500'
+                                }`}
+                            title="Click to start/pause"
+                        >
+                            {formatTime(restTimer.seconds)}
+                        </button>
+
+                        {/* Plus button */}
+                        <button
+                            onClick={() => restTimer.setDuration(restTimer.seconds + 15)}
+                            className="w-8 h-8 rounded-full bg-[#1A1A1A] text-white hover:bg-[#2A2A2A] flex items-center justify-center text-lg font-bold transition-colors"
+                            title="+15s"
+                        >
+                            +
+                        </button>
+                    </div>
+                </AuraCard>
+            </AuraGrid>
 
             {/* Exercise Tabs */}
             {session.exercises.length > 0 && (
-                <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
+                <div className="flex gap-2 overflow-x-auto pb-2">
                     {session.exercises.map((ex, index) => {
                         const exInfo = getExercise(ex.exerciseId);
                         const completedSets = ex.sets.filter(s => s.isCompleted).length;
                         const isComplete = completedSets === ex.sets.length;
+                        const isActive = activeExerciseIndex === index;
 
                         return (
                             <button
                                 key={ex.id}
                                 onClick={() => setActiveExerciseIndex(index)}
-                                className={`flex-shrink-0 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeExerciseIndex === index
-                                    ? 'bg-[var(--color-accent-gold)] text-black'
-                                    : isComplete
-                                        ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                                        : 'bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-tertiary)]'
-                                    }`}
+                                className={`
+                                    flex-shrink-0 px-4 py-2 rounded-lg text-sm font-medium transition-all
+                                    ${isActive
+                                        ? 'bg-[var(--color-accent-gold)] text-black'
+                                        : isComplete
+                                            ? 'bg-green-500/10 text-green-400 border border-green-500/30'
+                                            : 'bg-[#1A1A1A] text-gray-400 border border-[#2A2A2A] hover:border-[#333]'
+                                    }
+                                `}
                             >
-                                {exInfo?.name || `Ejercicio ${index + 1}`}
-                                <span className="ml-2 text-xs opacity-70">
-                                    {completedSets}/{ex.sets.length}
-                                </span>
+                                {exInfo?.name || `Exercise ${index + 1}`}
+                                <span className="ml-2 text-xs opacity-70">{completedSets}/{ex.sets.length}</span>
                             </button>
                         );
                     })}
                     <button
                         onClick={() => setShowAddExerciseModal(true)}
-                        className="flex-shrink-0 px-4 py-2 rounded-lg text-sm font-medium bg-[var(--color-bg-elevated)] text-[var(--color-text-muted)] hover:text-[var(--color-accent-gold)] border border-dashed border-[var(--color-border-default)]"
+                        className="flex-shrink-0 px-4 py-2 rounded-lg text-sm font-medium bg-transparent text-gray-600 border border-dashed border-[#333] hover:border-[var(--color-accent-gold)] hover:text-[var(--color-accent-gold)] transition-colors"
                     >
-                        + Añadir
+                        + Add
                     </button>
                 </div>
             )}
 
-            {/* Active Exercise */}
+            {/* Active Exercise Panel */}
             {activeExercise ? (
-                <Card>
-                    <div className="flex items-center justify-between mb-4">
-                        <div>
-                            <h3 className="text-xl font-bold">{exerciseInfo?.name || 'Ejercicio'}</h3>
-                            {exerciseInfo?.muscleGroups && (
-                                <div className="flex gap-2 mt-1">
-                                    {exerciseInfo.muscleGroups.map(mg => (
-                                        <Badge key={mg} size="sm">{mg}</Badge>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <Button variant="ghost" size="sm" onClick={() => handleAddSet(activeExerciseIndex)}>
-                                + Serie
-                            </Button>
-                            {session.exercises.length > 1 && (
-                                <button
-                                    onClick={() => setShowRemoveExerciseModal(true)}
-                                    className="p-2 rounded-lg text-[var(--color-text-muted)] hover:text-red-400 hover:bg-red-400/10 transition-colors"
-                                    title="Quitar ejercicio de la sesión"
-                                >
-                                    🗑️
-                                </button>
-                            )}
-                        </div>
-                    </div>
+                <AuraPanel
+                    header={
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <span className="text-lg text-white font-medium">
+                                    {exerciseInfo?.name || 'Exercise'}
+                                </span>
+                                {exerciseInfo?.muscleGroups && (
+                                    <div className="flex gap-2 mt-1">
+                                        {exerciseInfo.muscleGroups.map(mg => (
+                                            <AuraBadge key={mg} size="sm" variant="muted">{mg}</AuraBadge>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                                {/* 1RM Display with Reference Support */}
+                                {(() => {
+                                    const athlete = session ? getAthlete(session.athleteId) : null;
+                                    if (!athlete) return null;
+                                    if (settings.show1RMHints === false) return null;
 
-                    {/* Sets Table */}
+                                    return (
+                                        <>
+                                            <OneRMHint
+                                                exerciseId={activeExercise.exerciseId}
+                                                athlete={athlete}
+                                                compact={false}
+                                            />
+                                            <LoadSuggestion
+                                                exerciseId={activeExercise.exerciseId}
+                                                athlete={athlete}
+                                                targetReps={activeExercise.sets[0]?.targetReps || 5}
+                                                targetRPE={8}
+                                                show={activeExercise.strengthFocus}
+                                            />
+                                        </>
+                                    );
+                                })()}
+
+                                {/* Strength Focus Toggle */}
+                                <button
+                                    onClick={() => {
+                                        const updatedExercises = [...session.exercises];
+                                        updatedExercises[activeExerciseIndex] = {
+                                            ...updatedExercises[activeExerciseIndex],
+                                            strengthFocus: !activeExercise.strengthFocus,
+                                        };
+                                        // Note: Using store directly for this UI-specific toggle
+                                        const { updateSession } = useTrainingStore.getState();
+                                        updateSession(session.id, { exercises: updatedExercises });
+                                    }}
+                                    className={`px-2 py-1 rounded text-xs font-medium transition-all ${activeExercise.strengthFocus
+                                        ? 'bg-[var(--color-accent-gold)] text-black'
+                                        : 'bg-[var(--color-bg-elevated)] text-gray-400 hover:text-white'
+                                        }`}
+                                    title={activeExercise.strengthFocus ? 'Enfoque fuerza activo' : 'Activar enfoque fuerza'}
+                                >
+                                    💪 {activeExercise.strengthFocus ? 'Fuerza' : ''}
+                                </button>
+
+                                <AuraButton variant="ghost" size="sm" onClick={() => handleAddSet(activeExerciseIndex)}>
+                                    + Set
+                                </AuraButton>
+                                {session.exercises.length > 1 && (
+                                    <button
+                                        onClick={() => setShowRemoveExerciseModal(true)}
+                                        className="p-2 rounded text-gray-500 hover:text-red-400 hover:bg-red-400/10 transition-colors"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    }
+                >
                     <div className="space-y-2">
                         {activeExercise.sets.map((set, setIndex) => (
                             <SetRow
@@ -393,29 +365,29 @@ export function LiveSession() {
                                 onUncomplete={() => handleUncompleteSet(activeExerciseIndex, setIndex)}
                                 canRemove={activeExercise.sets.length > 1}
                                 exerciseId={activeExercise.exerciseId}
-                                exerciseName={exerciseInfo?.name || 'Ejercicio'}
+                                exerciseName={exerciseInfo?.name || 'Exercise'}
                                 athleteId={session.athleteId}
                                 previousSets={activeExercise.sets.slice(0, setIndex).filter(s => s.isCompleted)}
                                 exerciseHistory={exerciseHistory}
                             />
                         ))}
                     </div>
-                </Card>
+                </AuraPanel>
             ) : (
-                <Card>
-                    <EmptyState
+                <AuraPanel>
+                    <AuraEmptyState
                         icon="🏋️"
-                        title="Sin ejercicios"
-                        description="Añade ejercicios a esta sesión para comenzar."
+                        title="No exercises"
+                        description="Add exercises to this session to begin."
                         action={{
-                            label: 'Añadir Ejercicio',
+                            label: 'Add Exercise',
                             onClick: () => setShowAddExerciseModal(true),
                         }}
                     />
-                </Card>
+                </AuraPanel>
             )}
 
-            {/* Modal: Add Exercise */}
+            {/* Modals */}
             <AddExerciseModal
                 isOpen={showAddExerciseModal}
                 onClose={() => setShowAddExerciseModal(false)}
@@ -426,124 +398,112 @@ export function LiveSession() {
                 getExercise={getExercise}
             />
 
-            {/* Modal: Finish Session */}
             <Modal
                 isOpen={showFinishModal}
                 onClose={() => setShowFinishModal(false)}
-                title="Finalizar Sesión"
+                title="Finish Session"
                 size="sm"
                 footer={
                     <>
-                        <Button variant="ghost" onClick={() => setShowFinishModal(false)}>
-                            Continuar
-                        </Button>
-                        <Button onClick={handleFinishSession}>
-                            Finalizar
-                        </Button>
+                        <AuraButton variant="ghost" onClick={() => setShowFinishModal(false)}>
+                            Continue
+                        </AuraButton>
+                        <AuraButton variant="gold" onClick={handleFinishSession}>
+                            Finish
+                        </AuraButton>
                     </>
                 }
             >
                 <div className="space-y-4">
-                    <p className="text-[var(--color-text-secondary)]">
-                        ¿Finalizar la sesión?
-                    </p>
-                    <div className="grid grid-cols-2 gap-4 p-4 rounded-lg bg-[var(--color-bg-tertiary)]">
+                    <p className="text-gray-400">Finish this session?</p>
+                    <div className="grid grid-cols-2 gap-4 p-4 rounded-lg bg-[#0F0F0F] border border-[#2A2A2A]">
                         <div className="text-center">
-                            <p className="text-xl font-bold text-[var(--color-accent-beige)]">
-                                {liveStats.completedSets}
-                            </p>
-                            <p className="text-xs text-[var(--color-text-muted)]">Series</p>
+                            <p className="text-xl font-mono text-[var(--color-accent-gold)]">{liveStats.completedSets}</p>
+                            <p className="text-[10px] text-gray-500 uppercase">Sets</p>
                         </div>
                         <div className="text-center">
-                            <p className="text-xl font-bold text-[var(--color-accent-beige)]">
-                                {liveStats.totalVolume.toLocaleString()} kg
-                            </p>
-                            <p className="text-xs text-[var(--color-text-muted)]">Volumen</p>
+                            <p className="text-xl font-mono text-[var(--color-accent-gold)]">{liveStats.totalVolume.toLocaleString()} kg</p>
+                            <p className="text-[10px] text-gray-500 uppercase">Volume</p>
                         </div>
                     </div>
                 </div>
             </Modal>
 
-            {/* Modal: Remove Exercise Confirmation */}
             <Modal
                 isOpen={showRemoveExerciseModal}
                 onClose={() => setShowRemoveExerciseModal(false)}
-                title="Quitar Ejercicio"
+                title="Remove Exercise"
                 size="sm"
                 footer={
                     <>
-                        <Button variant="ghost" onClick={() => setShowRemoveExerciseModal(false)}>
-                            Cancelar
-                        </Button>
-                        <Button
-                            className="bg-red-600 hover:bg-red-700"
+                        <AuraButton variant="ghost" onClick={() => setShowRemoveExerciseModal(false)}>
+                            Cancel
+                        </AuraButton>
+                        <AuraButton
+                            variant="secondary"
+                            className="!bg-red-600 hover:!bg-red-700 !border-red-600"
                             onClick={() => handleRemoveExercise(activeExerciseIndex)}
                         >
-                            Quitar
-                        </Button>
+                            Remove
+                        </AuraButton>
                     </>
                 }
             >
-                <p className="text-[var(--color-text-secondary)]">
-                    ¿Quitar el ejercicio <strong>{exerciseInfo?.name || 'seleccionado'}</strong> de esta sesión?
+                <p className="text-gray-400">
+                    Remove <strong className="text-white">{exerciseInfo?.name || 'this exercise'}</strong>?
                 </p>
-                <p className="text-sm text-[var(--color-text-muted)] mt-2">
-                    Se eliminarán todas las series de este ejercicio.
-                </p>
+                <p className="text-sm text-gray-600 mt-2">All sets for this exercise will be deleted.</p>
             </Modal>
 
-            {/* Modal: Cancel Session Confirmation */}
             <Modal
                 isOpen={showCancelModal}
                 onClose={() => setShowCancelModal(false)}
-                title="Cancelar Sesión"
+                title="Cancel Session"
                 size="sm"
                 footer={
                     <>
-                        <Button variant="ghost" onClick={() => setShowCancelModal(false)}>
-                            Volver
-                        </Button>
-                        <Button
-                            className="bg-red-600 hover:bg-red-700"
+                        <AuraButton variant="ghost" onClick={() => setShowCancelModal(false)}>
+                            Go Back
+                        </AuraButton>
+                        <AuraButton
+                            variant="secondary"
+                            className="!bg-red-600 hover:!bg-red-700 !border-red-600"
                             onClick={handleCancelSession}
                         >
-                            Sí, cancelar sesión
-                        </Button>
+                            Yes, Cancel
+                        </AuraButton>
                     </>
                 }
             >
-                <p className="text-[var(--color-text-secondary)]">
-                    ¿Cancelar la sesión <strong>"{session.name}"</strong>?
+                <p className="text-gray-400">
+                    Cancel session <strong className="text-white">"{session.name}"</strong>?
                 </p>
-                <p className="text-sm text-[var(--color-text-muted)] mt-2">
-                    La sesión se marcará como cancelada. Podrás verla en el historial pero no contará para estadísticas.
-                </p>
+                <p className="text-sm text-gray-600 mt-2">The session will be marked as cancelled.</p>
             </Modal>
 
-            {/* Modal: Exit Confirmation */}
             <Modal
                 isOpen={showExitModal}
                 onClose={() => setShowExitModal(false)}
-                title="Salir de la Sesión"
+                title="Exit Session"
                 size="sm"
                 footer={
                     <>
-                        <Button variant="ghost" onClick={() => setShowExitModal(false)}>
-                            Continuar entrenando
-                        </Button>
-                        <Button onClick={() => navigate('/sessions')}>
-                            Salir sin finalizar
-                        </Button>
+                        <AuraButton variant="ghost" onClick={() => setShowExitModal(false)}>
+                            Keep Training
+                        </AuraButton>
+                        <AuraButton onClick={() => navigate('/sessions')}>
+                            Exit
+                        </AuraButton>
                     </>
                 }
             >
-                <p className="text-[var(--color-text-secondary)]">
-                    Tienes <strong>{liveStats.completedSets} series</strong> completadas sin finalizar.
+                <p className="text-gray-400">
+                    You have <strong className="text-white">{liveStats.completedSets} sets</strong> completed.
                 </p>
-                <p className="text-sm text-[var(--color-text-muted)] mt-2">
-                    Si sales, la sesión permanecerá en estado "en curso". Puedes volver a entrar después.
+                <p className="text-sm text-gray-600 mt-2">
+                    The session will remain "in progress". You can return later.
                 </p>
             </Modal>
-        </PageContainer>
+        </div>
     );
 }

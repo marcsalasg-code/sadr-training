@@ -1,39 +1,49 @@
 /**
  * ExercisesView - Gestión global de ejercicios
  * Lista, crea, edita y elimina ejercicios del catálogo
+ * Rediseñado con UI Aura
  */
 
 import { useState, useMemo } from 'react';
-import { PageContainer } from '../components/layout';
-import { Card, Button, Input, Badge, EmptyState, Modal, Select } from '../components/ui';
+import { Modal, Input, Select } from '../components/ui';
+import {
+    AuraSection,
+    AuraGrid,
+    AuraCard,
+    AuraPanel,
+    AuraButton,
+    AuraBadge,
+    AuraMetric,
+    AuraEmptyState,
+} from '../components/ui/aura';
 import { useTrainingStore, useExercises } from '../store/store';
 import type { Exercise, MuscleGroup, ExerciseCategory } from '../types/types';
 
 const MUSCLE_GROUPS: { value: MuscleGroup; label: string }[] = [
-    { value: 'chest', label: 'Pecho' },
-    { value: 'back', label: 'Espalda' },
-    { value: 'shoulders', label: 'Hombros' },
-    { value: 'biceps', label: 'Bíceps' },
-    { value: 'triceps', label: 'Tríceps' },
-    { value: 'forearms', label: 'Antebrazos' },
-    { value: 'quads', label: 'Cuádriceps' },
-    { value: 'hamstrings', label: 'Isquiotibiales' },
-    { value: 'glutes', label: 'Glúteos' },
-    { value: 'calves', label: 'Gemelos' },
+    { value: 'chest', label: 'Chest' },
+    { value: 'back', label: 'Back' },
+    { value: 'shoulders', label: 'Shoulders' },
+    { value: 'biceps', label: 'Biceps' },
+    { value: 'triceps', label: 'Triceps' },
+    { value: 'forearms', label: 'Forearms' },
+    { value: 'quads', label: 'Quads' },
+    { value: 'hamstrings', label: 'Hamstrings' },
+    { value: 'glutes', label: 'Glutes' },
+    { value: 'calves', label: 'Calves' },
     { value: 'core', label: 'Core' },
     { value: 'full_body', label: 'Full Body' },
     { value: 'cardio', label: 'Cardio' },
 ];
 
 const CATEGORIES: { value: ExerciseCategory; label: string }[] = [
-    { value: 'strength', label: 'Fuerza' },
-    { value: 'hypertrophy', label: 'Hipertrofia' },
-    { value: 'power', label: 'Potencia' },
-    { value: 'endurance', label: 'Resistencia' },
-    { value: 'mobility', label: 'Movilidad' },
+    { value: 'strength', label: 'Strength' },
+    { value: 'hypertrophy', label: 'Hypertrophy' },
+    { value: 'power', label: 'Power' },
+    { value: 'endurance', label: 'Endurance' },
+    { value: 'mobility', label: 'Mobility' },
     { value: 'cardio', label: 'Cardio' },
-    { value: 'warmup', label: 'Calentamiento' },
-    { value: 'cooldown', label: 'Enfriamiento' },
+    { value: 'warmup', label: 'Warm-up' },
+    { value: 'cooldown', label: 'Cool-down' },
 ];
 
 export function ExercisesView() {
@@ -63,34 +73,30 @@ export function ExercisesView() {
     }), [exercises]);
 
     return (
-        <PageContainer
-            title="Ejercicios"
-            subtitle={`${exercises.length} ejercicio${exercises.length !== 1 ? 's' : ''} en el catálogo`}
-            actions={
-                <Button onClick={() => setShowCreateModal(true)}>+ Nuevo Ejercicio</Button>
-            }
-        >
+        <div className="p-8 space-y-6 max-w-6xl mx-auto">
+            {/* Header */}
+            <AuraSection
+                title="Exercises"
+                subtitle={`${exercises.length} exercise${exercises.length !== 1 ? 's' : ''} in catalog`}
+                action={
+                    <AuraButton variant="gold" onClick={() => setShowCreateModal(true)}>
+                        + New Exercise
+                    </AuraButton>
+                }
+            />
+
             {/* Stats */}
-            <div className="grid grid-cols-3 gap-4 mb-6">
-                <Card className="text-center py-3">
-                    <p className="text-2xl font-bold text-[var(--color-accent-beige)]">{stats.total}</p>
-                    <p className="text-xs text-[var(--color-text-muted)]">Total</p>
-                </Card>
-                <Card className="text-center py-3">
-                    <p className="text-2xl font-bold text-[var(--color-accent-gold)]">{stats.custom}</p>
-                    <p className="text-xs text-[var(--color-text-muted)]">Personalizados</p>
-                </Card>
-                <Card className="text-center py-3">
-                    <p className="text-2xl font-bold text-[var(--color-text-secondary)]">{stats.categories}</p>
-                    <p className="text-xs text-[var(--color-text-muted)]">Categorías</p>
-                </Card>
-            </div>
+            <AuraGrid cols={3} gap="md">
+                <AuraMetric label="Total" value={stats.total} />
+                <AuraMetric label="Custom" value={stats.custom} />
+                <AuraMetric label="Categories" value={stats.categories} />
+            </AuraGrid>
 
             {/* Filters */}
             {exercises.length > 0 && (
-                <div className="flex gap-4 mb-6">
+                <div className="flex gap-4 p-4 bg-[#0F0F0F] border border-[#2A2A2A] rounded-lg">
                     <Input
-                        placeholder="Buscar ejercicios..."
+                        placeholder="Search exercises..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="flex-1 max-w-md"
@@ -98,38 +104,39 @@ export function ExercisesView() {
                     <Select
                         value={filterMuscle}
                         onChange={(e) => setFilterMuscle(e.target.value as MuscleGroup | '')}
-                        options={[{ value: '', label: 'Todos los músculos' }, ...MUSCLE_GROUPS]}
-                        className="w-48"
+                        options={[{ value: '', label: 'All muscles' }, ...MUSCLE_GROUPS]}
+                        className="w-40"
                     />
                     <Select
                         value={filterCategory}
                         onChange={(e) => setFilterCategory(e.target.value as ExerciseCategory | '')}
-                        options={[{ value: '', label: 'Todas las categorías' }, ...CATEGORIES]}
-                        className="w-48"
+                        options={[{ value: '', label: 'All categories' }, ...CATEGORIES]}
+                        className="w-40"
                     />
                 </div>
             )}
 
             {/* Content */}
             {exercises.length === 0 ? (
-                <Card>
-                    <EmptyState
-                        icon="🏋️"
-                        title="Sin ejercicios"
-                        description="Crea ejercicios para usar en tus sesiones y plantillas."
-                        action={{ label: 'Crear Ejercicio', onClick: () => setShowCreateModal(true) }}
+                <AuraPanel>
+                    <AuraEmptyState
+                        icon="📚"
+                        title="Your exercise library is empty"
+                        description="Add exercises to create templates and plan sessions."
+                        action={{ label: 'Add Exercise', onClick: () => setShowCreateModal(true) }}
                     />
-                </Card>
+                </AuraPanel>
             ) : filteredExercises.length === 0 ? (
-                <Card>
-                    <EmptyState
+                <AuraPanel>
+                    <AuraEmptyState
                         icon="🔍"
-                        title="Sin resultados"
-                        description="No hay ejercicios que coincidan con los filtros."
+                        title="No exercises found"
+                        description="Try adjusting your filters or search terms."
+                        size="sm"
                     />
-                </Card>
+                </AuraPanel>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <AuraGrid cols={3} gap="md">
                     {filteredExercises.map(exercise => (
                         <ExerciseCard
                             key={exercise.id}
@@ -138,7 +145,7 @@ export function ExercisesView() {
                             onDelete={() => setShowDeleteModal(exercise)}
                         />
                     ))}
-                </div>
+                </AuraGrid>
             )}
 
             {/* Create Modal */}
@@ -158,36 +165,37 @@ export function ExercisesView() {
                 />
             )}
 
-            {/* Delete Confirmation Modal */}
+            {/* Delete Modal */}
             <Modal
                 isOpen={!!showDeleteModal}
                 onClose={() => setShowDeleteModal(null)}
-                title="Eliminar Ejercicio"
+                title="Delete Exercise"
                 size="sm"
                 footer={
                     <>
-                        <Button variant="ghost" onClick={() => setShowDeleteModal(null)}>Cancelar</Button>
-                        <Button
-                            className="bg-red-600 hover:bg-red-700"
+                        <AuraButton variant="ghost" onClick={() => setShowDeleteModal(null)}>Cancel</AuraButton>
+                        <AuraButton
+                            variant="secondary"
+                            className="!bg-red-600 hover:!bg-red-700 !border-red-600"
                             onClick={() => { if (showDeleteModal) { deleteExercise(showDeleteModal.id); setShowDeleteModal(null); } }}
                         >
-                            Eliminar
-                        </Button>
+                            Delete
+                        </AuraButton>
                     </>
                 }
             >
-                <p className="text-[var(--color-text-secondary)]">
-                    ¿Eliminar el ejercicio <strong>{showDeleteModal?.name}</strong>?
+                <p className="text-gray-400">
+                    Delete <strong className="text-white">{showDeleteModal?.name}</strong>?
                 </p>
-                <p className="text-sm text-[var(--color-text-muted)] mt-2">
-                    Esta acción no se puede deshacer. Las sesiones y plantillas que usen este ejercicio mostrarán "Ejercicio eliminado".
+                <p className="text-sm text-gray-600 mt-2">
+                    Sessions and templates using this exercise will show "Deleted exercise".
                 </p>
             </Modal>
-        </PageContainer>
+        </div>
     );
 }
 
-// Exercise Card Component
+// Exercise Card
 interface ExerciseCardProps {
     exercise: Exercise;
     onEdit: () => void;
@@ -198,37 +206,37 @@ function ExerciseCard({ exercise, onEdit, onDelete }: ExerciseCardProps) {
     const categoryLabel = CATEGORIES.find(c => c.value === exercise.category)?.label || exercise.category;
 
     return (
-        <Card hover className="relative group" onClick={onEdit}>
+        <AuraCard hover className="relative group" onClick={onEdit}>
             <div className="flex items-start justify-between mb-2">
-                <h3 className="font-semibold">{exercise.name}</h3>
-                {exercise.isCustom && <Badge size="sm" variant="gold">Personalizado</Badge>}
+                <h3 className="font-semibold text-white truncate">{exercise.name}</h3>
+                {exercise.isCustom && <AuraBadge size="sm" variant="gold">Custom</AuraBadge>}
             </div>
 
             <div className="flex flex-wrap gap-1 mb-3">
                 {exercise.muscleGroups.map(mg => {
                     const label = MUSCLE_GROUPS.find(m => m.value === mg)?.label || mg;
-                    return <Badge key={mg} size="sm">{label}</Badge>;
+                    return <AuraBadge key={mg} size="sm" variant="muted">{label}</AuraBadge>;
                 })}
             </div>
 
-            <div className="flex items-center gap-4 pt-3 border-t border-[var(--color-border-default)] text-xs text-[var(--color-text-muted)]">
+            <div className="flex items-center gap-4 pt-3 border-t border-[#2A2A2A] text-xs text-gray-500">
                 <span>📂 {categoryLabel}</span>
-                {exercise.equipment && (
-                    <span>🛠️ {exercise.equipment}</span>
-                )}
+                {exercise.equipment && <span>🛠️ {exercise.equipment}</span>}
             </div>
 
             {exercise.description && (
-                <p className="text-sm text-[var(--color-text-muted)] mt-2 line-clamp-2">{exercise.description}</p>
+                <p className="text-sm text-gray-600 mt-2 line-clamp-2">{exercise.description}</p>
             )}
 
             <button
                 onClick={(e) => { e.stopPropagation(); onDelete(); }}
-                className="absolute top-4 right-4 p-2 rounded-lg opacity-0 group-hover:opacity-100 hover:text-red-400 transition-all"
+                className="absolute top-3 right-3 p-1.5 rounded bg-[#1A1A1A] text-gray-600 opacity-0 group-hover:opacity-100 hover:text-red-400 transition-all"
             >
-                🗑️
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
             </button>
-        </Card>
+        </AuraCard>
     );
 }
 
@@ -271,44 +279,44 @@ function ExerciseFormModal({ isOpen, exercise, onClose, onSave }: ExerciseFormMo
         <Modal
             isOpen={isOpen}
             onClose={onClose}
-            title={exercise ? 'Editar Ejercicio' : 'Nuevo Ejercicio'}
+            title={exercise ? 'Edit Exercise' : 'New Exercise'}
             size="md"
             footer={
                 <>
-                    <Button variant="ghost" onClick={onClose}>Cancelar</Button>
-                    <Button onClick={handleSave} disabled={!name.trim() || muscleGroups.length === 0}>
-                        {exercise ? 'Guardar' : 'Crear'}
-                    </Button>
+                    <AuraButton variant="ghost" onClick={onClose}>Cancel</AuraButton>
+                    <AuraButton variant="gold" onClick={handleSave} disabled={!name.trim() || muscleGroups.length === 0}>
+                        {exercise ? 'Save' : 'Create'}
+                    </AuraButton>
                 </>
             }
         >
             <div className="space-y-4">
                 <Input
-                    label="Nombre *"
+                    label="Name *"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     autoFocus
                 />
 
                 <Select
-                    label="Categoría"
+                    label="Category"
                     value={category}
                     onChange={(e) => setCategory(e.target.value as ExerciseCategory)}
                     options={CATEGORIES}
                 />
 
                 <div>
-                    <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">
-                        Grupos Musculares *
+                    <label className="block text-[10px] text-gray-500 uppercase tracking-widest mb-2">
+                        Muscle Groups *
                     </label>
                     <div className="flex flex-wrap gap-2">
                         {MUSCLE_GROUPS.map(mg => (
                             <button
                                 key={mg.value}
                                 onClick={() => toggleMuscleGroup(mg.value)}
-                                className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${muscleGroups.includes(mg.value)
-                                    ? 'bg-[var(--color-accent-gold)] text-[var(--color-bg-primary)]'
-                                    : 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-muted)] hover:bg-[var(--color-bg-elevated)]'
+                                className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${muscleGroups.includes(mg.value)
+                                    ? 'bg-[var(--color-accent-gold)] text-black'
+                                    : 'bg-[#1A1A1A] text-gray-500 hover:bg-[#222]'
                                     }`}
                             >
                                 {mg.label}
@@ -316,27 +324,27 @@ function ExerciseFormModal({ isOpen, exercise, onClose, onSave }: ExerciseFormMo
                         ))}
                     </div>
                     {muscleGroups.length === 0 && (
-                        <p className="text-xs text-red-400 mt-1">Selecciona al menos un grupo muscular</p>
+                        <p className="text-xs text-red-400 mt-1">Select at least one muscle group</p>
                     )}
                 </div>
 
                 <Input
-                    label="Equipamiento"
+                    label="Equipment"
                     value={equipment}
                     onChange={(e) => setEquipment(e.target.value)}
-                    placeholder="Barra, mancuernas, máquina..."
+                    placeholder="Barbell, dumbbells, machine..."
                 />
 
                 <div>
-                    <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">
-                        Descripción
+                    <label className="block text-[10px] text-gray-500 uppercase tracking-widest mb-2">
+                        Description
                     </label>
                     <textarea
                         value={description}
                         onChange={(e) => setDescription(e.target.value)}
                         rows={3}
-                        className="input resize-none"
-                        placeholder="Descripción del ejercicio, técnica, etc."
+                        className="w-full bg-[#0A0A0A] border border-[#333] rounded px-3 py-2 text-sm text-white focus:border-[var(--color-accent-gold)] outline-none resize-none"
+                        placeholder="Exercise description, technique, etc."
                     />
                 </div>
             </div>

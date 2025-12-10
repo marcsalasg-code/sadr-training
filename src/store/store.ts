@@ -1,109 +1,56 @@
 /**
  * TRAINING MONITOR - Zustand Store
- * Estado global de la aplicación con slices bien definidas
+ * Estado global de la aplicación - Refactored to use domain slices
+ * 
+ * ARCHITECTURE:
+ * - Each domain has its own slice file (athletesSlice, sessionsSlice, etc.)
+ * - This file combines all slices into a single store with persist middleware
+ * - All existing exports are maintained for backward compatibility
  */
 
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import type {
-    Athlete,
-    Exercise,
-    WorkoutSession,
-    WorkoutTemplate,
-    Settings,
-    LabEntry,
-    UsageEvent,
-    UUID,
-} from '../types/types';
+
+// Import slice creators and interfaces
+import { createAthletesSlice, type AthletesSlice } from './athletesSlice';
+import { createSessionsSlice, type SessionsSlice } from './sessionsSlice';
+import { createTemplatesSlice, type TemplatesSlice } from './templatesSlice';
+import { createExercisesSlice, type ExercisesSlice } from './exercisesSlice';
+import { createPlansSlice, type PlansSlice } from './plansSlice';
+import { createSettingsSlice, defaultSettings, type SettingsSlice } from './settingsSlice';
+import { createLabSlice, type LabSlice } from './labSlice';
 
 // ============================================
 // HELPERS
 // ============================================
 
-const generateId = (): UUID => crypto.randomUUID();
-
 const now = (): string => new Date().toISOString();
 
 // ============================================
-// DEFAULT VALUES
+// COMBINED STORE INTERFACE
 // ============================================
 
-const defaultSettings: Settings = {
-    language: 'es',
-    theme: 'dark',
-    defaultRestSeconds: 90,
-    weightIncrement: 2.5,
-    barbellWeight: 20,
-    showRPE: true,
-    showRIR: false,
-    autoStartRest: true,
-    vibrateOnRestEnd: true,
-    compactMode: false,
-    showWarmupSets: true,
-    defaultView: 'dashboard',
-    exportFormat: 'json',
-    autoBackup: true,
-    backupFrequency: 'weekly',
-};
-
-// ============================================
-// STORE INTERFACE
-// ============================================
-
-interface TrainingStore {
-    // === ATHLETES ===
-    athletes: Athlete[];
-    addAthlete: (athlete: Omit<Athlete, 'id' | 'createdAt' | 'updatedAt'>) => Athlete;
-    updateAthlete: (id: UUID, updates: Partial<Athlete>) => void;
-    deleteAthlete: (id: UUID) => void;
-    getAthlete: (id: UUID) => Athlete | undefined;
-
-    // === EXERCISES ===
-    exercises: Exercise[];
-    addExercise: (exercise: Omit<Exercise, 'id' | 'createdAt'>) => Exercise;
-    updateExercise: (id: UUID, updates: Partial<Exercise>) => void;
-    deleteExercise: (id: UUID) => void;
-    getExercise: (id: UUID) => Exercise | undefined;
-
-    // === SESSIONS ===
-    sessions: WorkoutSession[];
-    addSession: (session: Omit<WorkoutSession, 'id' | 'createdAt' | 'updatedAt'>) => WorkoutSession;
-    updateSession: (id: UUID, updates: Partial<WorkoutSession>) => void;
-    deleteSession: (id: UUID) => void;
-    getSession: (id: UUID) => WorkoutSession | undefined;
-    getSessionsByAthlete: (athleteId: UUID) => WorkoutSession[];
-    getSessionsByDate: (date: string) => WorkoutSession[];
-
-    // === TEMPLATES ===
-    templates: WorkoutTemplate[];
-    addTemplate: (template: Omit<WorkoutTemplate, 'id' | 'createdAt' | 'updatedAt'>) => WorkoutTemplate;
-    updateTemplate: (id: UUID, updates: Partial<WorkoutTemplate>) => void;
-    deleteTemplate: (id: UUID) => void;
-    getTemplate: (id: UUID) => WorkoutTemplate | undefined;
-
-    // === SETTINGS ===
-    settings: Settings;
-    updateSettings: (updates: Partial<Settings>) => void;
-    resetSettings: () => void;
-
-    // === INTERNAL LAB ===
-    labEntries: LabEntry[];
-    usageEvents: UsageEvent[];
-    addLabEntry: (entry: Omit<LabEntry, 'id' | 'createdAt'>) => LabEntry;
-    updateLabEntry: (id: UUID, updates: Partial<LabEntry>) => void;
-    deleteLabEntry: (id: UUID) => void;
-    logUsageEvent: (event: string, context?: string, data?: Record<string, unknown>) => void;
-    clearUsageEvents: () => void;
-
-    // === ACTIVE SESSION ===
-    activeSessionId: UUID | null;
-    setActiveSession: (id: UUID | null) => void;
-
-    // === DATA MANAGEMENT ===
+/**
+ * Data Management slice - handles import/export/clear
+ */
+interface DataManagementSlice {
     exportData: () => string;
     importData: (jsonData: string) => boolean;
     clearAllData: () => void;
 }
+
+/**
+ * Combined store type - all slices merged
+ */
+export type TrainingStore =
+    & AthletesSlice
+    & SessionsSlice
+    & TemplatesSlice
+    & ExercisesSlice
+    & PlansSlice
+    & SettingsSlice
+    & LabSlice
+    & DataManagementSlice;
 
 // ============================================
 // STORE IMPLEMENTATION
@@ -111,196 +58,15 @@ interface TrainingStore {
 
 export const useTrainingStore = create<TrainingStore>()(
     persist(
-        (set, get) => ({
-            // === ATHLETES ===
-            athletes: [],
-
-            addAthlete: (athleteData) => {
-                const athlete: Athlete = {
-                    ...athleteData,
-                    id: generateId(),
-                    createdAt: now(),
-                    updatedAt: now(),
-                };
-                set((state) => ({ athletes: [...state.athletes, athlete] }));
-                return athlete;
-            },
-
-            updateAthlete: (id, updates) => {
-                set((state) => ({
-                    athletes: state.athletes.map((a) =>
-                        a.id === id ? { ...a, ...updates, updatedAt: now() } : a
-                    ),
-                }));
-            },
-
-            deleteAthlete: (id) => {
-                set((state) => ({
-                    athletes: state.athletes.filter((a) => a.id !== id),
-                }));
-            },
-
-            getAthlete: (id) => get().athletes.find((a) => a.id === id),
-
-            // === EXERCISES ===
-            exercises: [],
-
-            addExercise: (exerciseData) => {
-                const exercise: Exercise = {
-                    ...exerciseData,
-                    id: generateId(),
-                    createdAt: now(),
-                };
-                set((state) => ({ exercises: [...state.exercises, exercise] }));
-                return exercise;
-            },
-
-            updateExercise: (id, updates) => {
-                set((state) => ({
-                    exercises: state.exercises.map((e) =>
-                        e.id === id ? { ...e, ...updates } : e
-                    ),
-                }));
-            },
-
-            deleteExercise: (id) => {
-                set((state) => ({
-                    exercises: state.exercises.filter((e) => e.id !== id),
-                }));
-            },
-
-            getExercise: (id) => get().exercises.find((e) => e.id === id),
-
-            // === SESSIONS ===
-            sessions: [],
-
-            addSession: (sessionData) => {
-                const session: WorkoutSession = {
-                    ...sessionData,
-                    id: generateId(),
-                    createdAt: now(),
-                    updatedAt: now(),
-                };
-                set((state) => ({ sessions: [...state.sessions, session] }));
-                return session;
-            },
-
-            updateSession: (id, updates) => {
-                set((state) => ({
-                    sessions: state.sessions.map((s) =>
-                        s.id === id ? { ...s, ...updates, updatedAt: now() } : s
-                    ),
-                }));
-            },
-
-            deleteSession: (id) => {
-                set((state) => ({
-                    sessions: state.sessions.filter((s) => s.id !== id),
-                }));
-            },
-
-            getSession: (id) => get().sessions.find((s) => s.id === id),
-
-            getSessionsByAthlete: (athleteId) =>
-                get().sessions.filter((s) => s.athleteId === athleteId),
-
-            getSessionsByDate: (date) =>
-                get().sessions.filter((s) => s.scheduledDate?.startsWith(date)),
-
-            // === TEMPLATES ===
-            templates: [],
-
-            addTemplate: (templateData) => {
-                const template: WorkoutTemplate = {
-                    ...templateData,
-                    id: generateId(),
-                    createdAt: now(),
-                    updatedAt: now(),
-                };
-                set((state) => ({ templates: [...state.templates, template] }));
-                return template;
-            },
-
-            updateTemplate: (id, updates) => {
-                set((state) => ({
-                    templates: state.templates.map((t) =>
-                        t.id === id ? { ...t, ...updates, updatedAt: now() } : t
-                    ),
-                }));
-            },
-
-            deleteTemplate: (id) => {
-                set((state) => ({
-                    templates: state.templates.filter((t) => t.id !== id),
-                }));
-            },
-
-            getTemplate: (id) => get().templates.find((t) => t.id === id),
-
-            // === SETTINGS ===
-            settings: defaultSettings,
-
-            updateSettings: (updates) => {
-                set((state) => ({
-                    settings: { ...state.settings, ...updates },
-                }));
-            },
-
-            resetSettings: () => {
-                set({ settings: defaultSettings });
-            },
-
-            // === INTERNAL LAB ===
-            labEntries: [],
-            usageEvents: [],
-
-            addLabEntry: (entryData) => {
-                const entry: LabEntry = {
-                    ...entryData,
-                    id: generateId(),
-                    createdAt: now(),
-                };
-                set((state) => ({ labEntries: [...state.labEntries, entry] }));
-                return entry;
-            },
-
-            updateLabEntry: (id, updates) => {
-                set((state) => ({
-                    labEntries: state.labEntries.map((e) =>
-                        e.id === id ? { ...e, ...updates } : e
-                    ),
-                }));
-            },
-
-            deleteLabEntry: (id) => {
-                set((state) => ({
-                    labEntries: state.labEntries.filter((e) => e.id !== id),
-                }));
-            },
-
-            logUsageEvent: (event, context, data) => {
-                const usageEvent: UsageEvent = {
-                    id: generateId(),
-                    event,
-                    context,
-                    data,
-                    timestamp: now(),
-                };
-                set((state) => ({
-                    usageEvents: [...state.usageEvents.slice(-999), usageEvent], // Keep last 1000
-                }));
-            },
-
-            clearUsageEvents: () => {
-                set({ usageEvents: [] });
-            },
-
-            // === ACTIVE SESSION ===
-            activeSessionId: null,
-
-            setActiveSession: (id) => {
-                set({ activeSessionId: id });
-            },
+        (set, get, api) => ({
+            // Combine all slices
+            ...createAthletesSlice(set, get, api),
+            ...createSessionsSlice(set, get, api),
+            ...createTemplatesSlice(set, get, api),
+            ...createExercisesSlice(set, get, api),
+            ...createPlansSlice(set, get, api),
+            ...createSettingsSlice(set, get, api),
+            ...createLabSlice(set, get, api),
 
             // === DATA MANAGEMENT ===
             exportData: () => {
@@ -323,14 +89,32 @@ export const useTrainingStore = create<TrainingStore>()(
                 }
 
                 const exportObj = {
-                    version: '1.0.0',
+                    // Schema metadata
+                    _meta: {
+                        app: 'SADR Training OS',
+                        schemaVersion: '1.2.0', // Updated for slice architecture
+                        exportedAt: now(),
+                        dataProfile: {
+                            athletes: state.athletes.length,
+                            exercises: state.exercises.length,
+                            sessions: state.sessions.length,
+                            templates: state.templates.length,
+                        },
+                    },
+                    // Legacy version for backward compatibility
+                    version: '1.2.0',
                     exportedAt: now(),
+                    // Data
                     athletes: state.athletes,
                     exercises: state.exercises,
                     sessions: state.sessions,
                     templates: state.templates,
                     settings: state.settings,
                     labEntries: state.labEntries,
+                    trainingPlans: state.trainingPlans,
+                    activeTrainingPlanId: state.activeTrainingPlanId,
+                    anchorConfig: state.anchorConfig,
+                    exerciseCategories: state.exerciseCategories,
                     aiSettings,
                 };
                 return JSON.stringify(exportObj, null, 2);
@@ -378,6 +162,10 @@ export const useTrainingStore = create<TrainingStore>()(
                         templates: data.templates || [],
                         settings: { ...defaultSettings, ...data.settings },
                         labEntries: data.labEntries || [],
+                        trainingPlans: data.trainingPlans || [],
+                        activeTrainingPlanId: data.activeTrainingPlanId || null,
+                        anchorConfig: data.anchorConfig || get().anchorConfig,
+                        exerciseCategories: data.exerciseCategories || get().exerciseCategories,
                     });
 
                     // Importar aiSettings si existen (sin sobrescribir apiKey actual)
@@ -421,6 +209,8 @@ export const useTrainingStore = create<TrainingStore>()(
                     labEntries: [],
                     usageEvents: [],
                     activeSessionId: null,
+                    trainingPlans: [],
+                    activeTrainingPlanId: null,
                 });
             },
         }),
@@ -434,6 +224,10 @@ export const useTrainingStore = create<TrainingStore>()(
                 templates: state.templates,
                 settings: state.settings,
                 labEntries: state.labEntries,
+                trainingPlans: state.trainingPlans,
+                activeTrainingPlanId: state.activeTrainingPlanId,
+                anchorConfig: state.anchorConfig,
+                exerciseCategories: state.exerciseCategories,
                 // Note: usageEvents not persisted to save space
             }),
         }
@@ -442,6 +236,7 @@ export const useTrainingStore = create<TrainingStore>()(
 
 // ============================================
 // SELECTOR HOOKS (para optimizar re-renders)
+// Maintained for backward compatibility
 // ============================================
 
 export const useAthletes = () => useTrainingStore((state) => state.athletes);
@@ -451,3 +246,63 @@ export const useTemplates = () => useTrainingStore((state) => state.templates);
 export const useSettings = () => useTrainingStore((state) => state.settings);
 export const useLabEntries = () => useTrainingStore((state) => state.labEntries);
 export const useActiveSessionId = () => useTrainingStore((state) => state.activeSessionId);
+export const useTrainingPlans = () => useTrainingStore((state) => state.trainingPlans);
+export const useActiveTrainingPlanId = () => useTrainingStore((state) => state.activeTrainingPlanId);
+
+// ============================================
+// GRANULAR SELECTORS (performance optimized)
+// ============================================
+
+/** Sessions filtered by status - avoids re-renders when other sessions change */
+export const useCompletedSessions = () => useTrainingStore((state) =>
+    state.sessions.filter(s => s.status === 'completed')
+);
+
+export const usePlannedSessions = () => useTrainingStore((state) =>
+    state.sessions.filter(s => s.status === 'planned')
+);
+
+export const useInProgressSessions = () => useTrainingStore((state) =>
+    state.sessions.filter(s => s.status === 'in_progress')
+);
+
+/** Active athletes only */
+export const useActiveAthletes = () => useTrainingStore((state) =>
+    state.athletes.filter(a => a.isActive)
+);
+
+/** Sessions for specific athlete - use with useMemo for ID */
+export const useSessionsByAthlete = (athleteId: string) => useTrainingStore((state) =>
+    state.sessions.filter(s => s.athleteId === athleteId)
+);
+
+/** Template usage stats for analytics */
+export const useTemplateUsageStats = () => useTrainingStore((state) => {
+    const usage: Record<string, number> = {};
+    state.sessions.forEach(s => {
+        if (s.templateId) {
+            usage[s.templateId] = (usage[s.templateId] || 0) + 1;
+        }
+    });
+    return usage;
+});
+
+/** Weekly session count for dashboard */
+export const useWeeklySessionCount = () => useTrainingStore((state) => {
+    const now = new Date();
+    const weekStart = new Date(now);
+    weekStart.setDate(now.getDate() - now.getDay());
+    weekStart.setHours(0, 0, 0, 0);
+
+    return state.sessions.filter(s =>
+        s.status === 'completed' &&
+        s.completedAt &&
+        new Date(s.completedAt) >= weekStart
+    ).length;
+});
+
+/** 1RM Anchor Config */
+export const useAnchorConfig = () => useTrainingStore((state) => state.anchorConfig);
+
+/** Exercise Categories */
+export const useExerciseCategories = () => useTrainingStore((state) => state.exerciseCategories);
