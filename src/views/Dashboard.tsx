@@ -20,7 +20,7 @@ import {
     AuraCard,
     AuraEmptyState,
 } from '../components/ui/aura';
-import { TrainingPlanModal, AIInsightBanner, useAIInsight } from '../components/dashboard';
+import { TrainingPlanModal, AIInsightBanner, useAIInsight, TodayTrainingWidget } from '../components/dashboard';
 import { FatigueIndicator } from '../components/common';
 import { useDashboardData } from '../hooks';
 import { formatDateShort } from '../utils';
@@ -69,6 +69,9 @@ export function Dashboard() {
                     compact
                 />
             )}
+
+            {/* COACH HUB: Today's Training Widget */}
+            <TodayTrainingWidget />
 
             {/* Header Section */}
             <AuraSection

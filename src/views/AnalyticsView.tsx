@@ -2,8 +2,8 @@
  * AnalyticsView - Vista de análisis y métricas de entrenamiento
  */
 
-import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useMemo, useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { PageContainer } from '../components/layout';
 import { Select, Tabs, Badge } from '../components/ui';
 import { AuraCard, AuraMetric } from '../components/ui/aura';
@@ -20,13 +20,26 @@ import { AIInsightsPanel } from '../components/common';
 
 export function AnalyticsView() {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const sessions = useSessions();
     const athletes = useAthletes();
     const exercises = useExercises();
     const trainingPlans = useTrainingPlans();
 
-    const [selectedAthlete, setSelectedAthlete] = useState<string>('all');
-    const [timeRange, setTimeRange] = useState<string>('month');
+    // Initialize from query params for contextual navigation
+    const initialAthlete = searchParams.get('athleteId') || 'all';
+    const initialRange = searchParams.get('range') || 'month';
+
+    const [selectedAthlete, setSelectedAthlete] = useState<string>(initialAthlete);
+    const [timeRange, setTimeRange] = useState<string>(initialRange);
+
+    // Sync with query params when they change (for navigation)
+    useEffect(() => {
+        const athleteParam = searchParams.get('athleteId');
+        if (athleteParam && athleteParam !== selectedAthlete) {
+            setSelectedAthlete(athleteParam);
+        }
+    }, [searchParams, selectedAthlete]);
 
     // Filtrar sesiones por rango de tiempo
     const filteredSessions = useMemo(() => {

@@ -4,9 +4,37 @@
 
 import type { Exercise, ExerciseEntry, SetEntry, WorkoutSession, BlockType } from '../../types/types';
 import type { GeneratedSession } from '../types';
+import type { SessionStructure, SessionBlockConfig, SessionStructureType } from '../../core/sessions/sessionStructure.model';
+
+/**
+ * Map BlockType to SessionStructureType
+ */
+function mapBlockTypeToStructureType(blockType: BlockType): SessionStructureType {
+    const mapping: Record<BlockType, SessionStructureType> = {
+        movilidad_calentamiento: 'linear',
+        fuerza: 'linear',
+        tecnica_especifica: 'linear',
+        emom_hiit: 'emom',
+    };
+    return mapping[blockType] || 'linear';
+}
+
+/**
+ * Map BlockType to Spanish label
+ */
+function mapBlockTypeToLabel(blockType: BlockType): string {
+    const mapping: Record<BlockType, string> = {
+        movilidad_calentamiento: 'Movilidad / Calentamiento',
+        fuerza: 'Fuerza Principal',
+        tecnica_especifica: 'Técnica Específica',
+        emom_hiit: 'EMOM / HIIT',
+    };
+    return mapping[blockType] || 'Bloque';
+}
 
 /**
  * Mapea una sesión generada por IA al modelo WorkoutSession
+ * Ahora incluye SessionStructure explícita con blockId en exercises/sets
  */
 export function mapGeneratedToSession(
     generated: GeneratedSession,
@@ -14,10 +42,24 @@ export function mapGeneratedToSession(
     exercises: Exercise[]
 ): Omit<WorkoutSession, 'id' | 'createdAt' | 'updatedAt'> {
     const exerciseEntries: ExerciseEntry[] = [];
+    const structureBlocks: SessionBlockConfig[] = [];
     let globalOrder = 0;
 
-    for (const bloque of generated.bloques) {
+    for (let blockIndex = 0; blockIndex < generated.bloques.length; blockIndex++) {
+        const bloque = generated.bloques[blockIndex];
+        const blockId = `block-${crypto.randomUUID()}`;
         let orderWithinBlock = 0;
+
+        // Create SessionBlockConfig for this block
+        structureBlocks.push({
+            id: blockId,
+            title: mapBlockTypeToLabel(bloque.tipo),
+            type: mapBlockTypeToStructureType(bloque.tipo),
+            order: blockIndex,
+            estimatedDuration: bloque.tiempo_min,
+            notes: '',
+            tags: [bloque.tipo],
+        });
 
         for (const ej of bloque.ejercicios) {
             const exercise = exercises.find(e => e.id === ej.id);
@@ -26,8 +68,8 @@ export function mapGeneratedToSession(
                 continue;
             }
 
-            // Crear sets basados en series/reps
-            const sets = createSetsFromSpec(ej.series, ej.reps);
+            // Crear sets basados en series/reps, with blockId
+            const sets = createSetsFromSpec(ej.series, ej.reps, blockId);
 
             exerciseEntries.push({
                 id: crypto.randomUUID(),
@@ -37,11 +79,19 @@ export function mapGeneratedToSession(
                 notes: ej.notas,
                 order: globalOrder++,
                 blockType: bloque.tipo,
+                blockId, // NEW: Add blockId
                 orderWithinBlock: orderWithinBlock++,
                 durationSeconds: ej.duracion_seg ?? undefined,
             });
         }
     }
+
+    // Create SessionStructure
+    const sessionStructure: SessionStructure = {
+        id: `structure-${crypto.randomUUID()}`,
+        name: `${generated.disciplina_global} - ${generated.nivel}`,
+        blocks: structureBlocks,
+    };
 
     // Calcular duración estimada
     const estimatedDuration = generated.bloques.reduce((sum, b) => sum + b.tiempo_min, 0);
@@ -53,6 +103,8 @@ export function mapGeneratedToSession(
         status: 'planned',
         exercises: exerciseEntries,
         durationMinutes: estimatedDuration,
+        origin: 'ai_suggestion',
+        structure: sessionStructure, // NEW: Include structure
     };
 }
 
@@ -61,7 +113,8 @@ export function mapGeneratedToSession(
  */
 function createSetsFromSpec(
     series: number | null,
-    reps: number | string | null
+    reps: number | string | null,
+    blockId: string
 ): SetEntry[] {
     const numSets = series ?? 3;
     const sets: SetEntry[] = [];
@@ -73,6 +126,7 @@ function createSetsFromSpec(
             type: 'working',
             targetReps: parseReps(reps),
             isCompleted: false,
+            blockId, // NEW: Add blockId
         });
     }
 

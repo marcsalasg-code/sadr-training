@@ -21,7 +21,9 @@ import { useTrainingStore, useSessions, useAthletes, useTemplates } from '../sto
 import { useAIEnabled } from '../ai';
 import { useTrainingPlan } from '../hooks';
 import { getRecommendedTemplates, getTemplateBadge } from '../utils/templateHelpers';
+import { createDefaultMigrationStructure, DEFAULT_BLOCK_ID } from '../core/sessions/sessionStructure.migration';
 import type { WorkoutSession, ExerciseEntry } from '../types/types';
+import type { SessionStructure } from '../core/sessions/sessionStructure.model';
 
 export function SessionBuilder() {
     const navigate = useNavigate();
@@ -81,13 +83,24 @@ export function SessionBuilder() {
         if (!newSession.name.trim() || !newSession.athleteId) return;
 
         let sessionExercises: ExerciseEntry[] = [];
+        let sessionStructure: SessionStructure | undefined;
+
         if (newSession.templateId) {
             const template = templates.find(t => t.id === newSession.templateId);
             if (template) {
+                // Copy structure from template, or create default
+                sessionStructure = template.structure
+                    ? { ...template.structure, id: `structure-${crypto.randomUUID()}` }
+                    : createDefaultMigrationStructure(crypto.randomUUID());
+
+                // Get default blockId for exercises
+                const defaultBlockId = sessionStructure.blocks[0]?.id || DEFAULT_BLOCK_ID;
+
                 sessionExercises = template.exercises.map((te, index) => ({
                     id: crypto.randomUUID(),
                     exerciseId: te.exerciseId,
                     order: index,
+                    blockId: defaultBlockId, // Add blockId
                     sets: Array.from({ length: te.defaultSets }, (_, i) => ({
                         id: crypto.randomUUID(),
                         setNumber: i + 1,
@@ -96,9 +109,13 @@ export function SessionBuilder() {
                         targetWeight: te.defaultWeight,
                         restSeconds: te.restSeconds,
                         isCompleted: false,
+                        blockId: defaultBlockId, // Add blockId to sets
                     })),
                 }));
             }
+        } else {
+            // Create default structure for sessions without template
+            sessionStructure = createDefaultMigrationStructure(crypto.randomUUID());
         }
 
         const session = addSession({
@@ -109,6 +126,8 @@ export function SessionBuilder() {
             scheduledDate: newSession.scheduledDate || undefined,
             status: 'planned',
             exercises: sessionExercises,
+            origin: 'manual',
+            structure: sessionStructure,
         });
 
         setNewSession({ name: '', athleteId: '', athleteIds: [], isMultiAthlete: false, templateId: '', description: '', scheduledDate: '' });
@@ -124,12 +143,29 @@ export function SessionBuilder() {
     const handleApplyAISession = (exercises: ExerciseEntry[], name: string) => {
         if (!aiAthleteId) return;
 
+        // Create default structure for AI sessions
+        // Note: In the future, AI should generate structure directly
+        const aiSessionStructure = createDefaultMigrationStructure(crypto.randomUUID());
+        const defaultBlockId = aiSessionStructure.blocks[0]?.id || DEFAULT_BLOCK_ID;
+
+        // Ensure exercises have blockId
+        const exercisesWithBlockId = exercises.map(ex => ({
+            ...ex,
+            blockId: ex.blockId || defaultBlockId,
+            sets: ex.sets.map(set => ({
+                ...set,
+                blockId: set.blockId || defaultBlockId,
+            })),
+        }));
+
         const session = addSession({
             name,
             athleteId: aiAthleteId,
             status: 'planned',
-            exercises,
+            exercises: exercisesWithBlockId,
             description: 'Generated with AI',
+            origin: 'ai_suggestion',
+            structure: aiSessionStructure,
         });
 
         setShowAIModal(false);

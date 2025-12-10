@@ -3,6 +3,8 @@
  * Modelos y entidades fundamentales de la aplicación
  */
 
+import type { SessionStructure } from '../core/sessions/sessionStructure.model';
+
 // ============================================
 // IDENTIFICADORES
 // ============================================
@@ -205,6 +207,9 @@ export interface SetEntry {
 
     // Intensity system (default 7 if not set)
     intensity?: number; // 1-10, alias visual de RPE
+
+    // Session Structure - blockId reference
+    blockId?: string; // Reference to SessionBlockConfig.id
 }
 
 export interface ExerciseEntry {
@@ -223,6 +228,9 @@ export interface ExerciseEntry {
 
     // 1RM System
     strengthFocus?: boolean; // Flag "enfoque fuerza" para activar recomendaciones
+
+    // Session Structure - blockId reference
+    blockId?: string; // Reference to SessionBlockConfig.id
 }
 
 // ============================================
@@ -272,7 +280,28 @@ export interface WorkoutSession {
     // === MULTI-ATLETA (Sprint 4) ===
     athleteData?: AthleteSessionData[];  // Datos por atleta (si multi-atleta)
     isMultiAthlete?: boolean;            // Flag explícito para modo multi-atleta
+
+    // === ORIGEN DE LA SESIÓN (Coach UX) ===
+    /** 
+     * Tracks where the session originated from:
+     * - 'plan': Created from a training plan
+     * - 'manual': Created manually by the coach
+     * - 'ai_suggestion': Created from an AI recommendation
+     */
+    origin?: SessionOrigin;
+
+    // === SESSION STRUCTURE (Unified System) ===
+    /**
+     * Internal structure of the session (blocks, types, etc.)
+     * Shared between templates and sessions
+     */
+    structure?: SessionStructure;
 }
+
+/**
+ * Session origin type for tracking how sessions were created
+ */
+export type SessionOrigin = 'plan' | 'manual' | 'ai_suggestion';
 
 
 // ============================================
@@ -340,6 +369,13 @@ export interface WorkoutTemplate {
     createdAt: string;
     updatedAt: string;
     isArchived: boolean;
+
+    // === SESSION STRUCTURE (Unified System) ===
+    /**
+     * Internal structure of the template (blocks, types, etc.)
+     * Copied to sessions created from this template
+     */
+    structure?: SessionStructure;
 }
 
 // ============================================

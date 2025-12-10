@@ -1,6 +1,8 @@
 /**
  * AddExerciseModal - Modal para añadir ejercicios a una sesión
  * Incluye búsqueda, creación de nuevos ejercicios y sugerencias IA
+ * 
+ * REFACTORED: Uses TrainingConfig for categories instead of hardcoded lists
  */
 
 import { useState, useMemo } from 'react';
@@ -8,7 +10,9 @@ import { Modal, Input, Select, Button } from '../ui';
 import { AuraEmptyState } from '../ui/aura';
 import { AIQuotaIndicator } from '../common';
 import { useExerciseSuggestions, useAIEnabled } from '../../ai';
+import { useTrainingStore } from '../../store/store';
 import type { Exercise, ExerciseEntry, MuscleGroup, ExerciseCategory } from '../../types/types';
+import type { MuscleGroup as CoreMuscleGroup } from '../../core/exercises/exercise.model';
 
 export interface AddExerciseModalProps {
     isOpen: boolean;
@@ -20,21 +24,7 @@ export interface AddExerciseModalProps {
     getExercise: (id: string) => Exercise | undefined;
 }
 
-// Opciones para los selectores
-const MUSCLE_GROUPS: { value: MuscleGroup; label: string }[] = [
-    { value: 'chest', label: 'Pecho' },
-    { value: 'back', label: 'Espalda' },
-    { value: 'shoulders', label: 'Hombros' },
-    { value: 'biceps', label: 'Bíceps' },
-    { value: 'triceps', label: 'Tríceps' },
-    { value: 'quads', label: 'Cuádriceps' },
-    { value: 'hamstrings', label: 'Isquiotibiales' },
-    { value: 'glutes', label: 'Glúteos' },
-    { value: 'calves', label: 'Pantorrillas' },
-    { value: 'core', label: 'Core' },
-    { value: 'full_body', label: 'Cuerpo Completo' },
-];
-
+// Fallback categories (used when pattern info needed, kept minimal)
 const CATEGORIES: { value: ExerciseCategory; label: string }[] = [
     { value: 'strength', label: 'Fuerza' },
     { value: 'hypertrophy', label: 'Hipertrofia' },
@@ -52,12 +42,22 @@ export function AddExerciseModal({
     onCreateExercise,
     getExercise,
 }: AddExerciseModalProps) {
+    // Get muscle groups from TrainingConfig
+    const trainingConfig = useTrainingStore((s) => s.trainingConfig);
+    const muscleGroupOptions = useMemo(() =>
+        trainingConfig.muscleGroups
+            .filter(mg => mg.enabled)
+            .sort((a, b) => a.order - b.order)
+            .map(mg => ({ value: mg.id as MuscleGroup, label: mg.label })),
+        [trainingConfig.muscleGroups]
+    );
+
     // Estados del modal
     const [searchQuery, setSearchQuery] = useState('');
     const [showCreateForm, setShowCreateForm] = useState(false);
     const [newExercise, setNewExercise] = useState({
         name: '',
-        muscleGroup: 'chest' as MuscleGroup,
+        muscleGroup: (muscleGroupOptions[0]?.value || 'chest') as MuscleGroup,
         category: 'strength' as ExerciseCategory,
     });
 
@@ -188,7 +188,7 @@ export function AddExerciseModal({
                             <Select
                                 value={newExercise.muscleGroup}
                                 onChange={(e) => setNewExercise(prev => ({ ...prev, muscleGroup: e.target.value as MuscleGroup }))}
-                                options={MUSCLE_GROUPS}
+                                options={muscleGroupOptions}
                             />
                             <Select
                                 value={newExercise.category}

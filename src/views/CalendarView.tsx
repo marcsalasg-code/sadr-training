@@ -227,7 +227,16 @@ export function CalendarView() {
                                                 }
                                             `}
                                         >
-                                            {session.name}
+                                            <span className="flex items-center gap-1">
+                                                {session.name}
+                                                {/* Origin Badge */}
+                                                {session.origin === 'plan' && (
+                                                    <span className="text-[7px] px-1 py-0.5 rounded bg-[var(--color-accent-gold)]/20 text-[var(--color-accent-gold)]" title="Desde Plan">P</span>
+                                                )}
+                                                {session.origin === 'ai_suggestion' && (
+                                                    <span className="text-[7px] px-1 py-0.5 rounded bg-purple-500/20 text-purple-400" title="Sugerencia IA">IA</span>
+                                                )}
+                                            </span>
                                             {session.status === 'completed' && (
                                                 <span className="flex items-center gap-1">
                                                     <span className="text-[8px] text-green-500">Completed</span>

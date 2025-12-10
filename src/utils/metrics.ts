@@ -449,3 +449,168 @@ export function getMonthSessions(sessions: WorkoutSession[]): WorkoutSession[] {
 export function getCompletedSessions(sessions: WorkoutSession[]): WorkoutSession[] {
     return filterCompletedSessions(sessions);
 }
+
+// ============================================
+// METRIC CLASSIFICATION (Coach Context)
+// ============================================
+
+/**
+ * Classification levels for metrics
+ * Used to provide context to coaches about whether values are normal, high, or low
+ */
+export type VolumeLevel = 'low' | 'medium' | 'high';
+export type ChangeLevel = 'stable' | 'moderate_increase' | 'big_increase' | 'decrease';
+export type RiskLevel = 'none' | 'low' | 'medium' | 'high';
+
+/**
+ * Experience level type for classification thresholds
+ */
+export type ExperienceLevelSimple = 'beginner' | 'intermediate' | 'advanced';
+
+/**
+ * Volume thresholds by experience level (in kg per week)
+ * Based on typical training volumes for strength/hypertrophy programs
+ */
+const VOLUME_THRESHOLDS: Record<ExperienceLevelSimple, { low: number; high: number }> = {
+    beginner: { low: 5000, high: 12000 },
+    intermediate: { low: 10000, high: 25000 },
+    advanced: { low: 20000, high: 45000 },
+};
+
+/**
+ * Frequency thresholds by experience level (sessions per week)
+ */
+const FREQUENCY_THRESHOLDS: Record<ExperienceLevelSimple, { low: number; high: number }> = {
+    beginner: { low: 2, high: 4 },
+    intermediate: { low: 3, high: 5 },
+    advanced: { low: 4, high: 6 },
+};
+
+/**
+ * Classify weekly volume based on experience level
+ * Returns whether the volume is low, medium, or high for the athlete's level
+ * 
+ * @param volume - Weekly volume in kg
+ * @param level - Athlete's experience level
+ * @returns VolumeLevel classification
+ */
+export function classifyWeeklyVolume(
+    volume: number,
+    level: ExperienceLevelSimple = 'intermediate'
+): VolumeLevel {
+    const thresholds = VOLUME_THRESHOLDS[level];
+    if (volume < thresholds.low) return 'low';
+    if (volume > thresholds.high) return 'high';
+    return 'medium';
+}
+
+/**
+ * Classify training frequency based on experience level
+ * Returns whether the frequency is low, medium, or high for the athlete's level
+ * 
+ * @param sessionsPerWeek - Number of sessions per week
+ * @param level - Athlete's experience level
+ * @returns VolumeLevel classification
+ */
+export function classifyFrequency(
+    sessionsPerWeek: number,
+    level: ExperienceLevelSimple = 'intermediate'
+): VolumeLevel {
+    const thresholds = FREQUENCY_THRESHOLDS[level];
+    if (sessionsPerWeek < thresholds.low) return 'low';
+    if (sessionsPerWeek > thresholds.high) return 'high';
+    return 'medium';
+}
+
+/**
+ * Classify volume change between periods
+ * Detects if volume is stable, increasing moderately, increasing significantly, or decreasing
+ * 
+ * Thresholds:
+ * - decrease: < -10%
+ * - stable: -10% to +10%
+ * - moderate_increase: +10% to +30%
+ * - big_increase: > +30%
+ * 
+ * @param current - Current period volume
+ * @param previous - Previous period volume
+ * @returns ChangeLevel classification
+ */
+export function classifyVolumeChange(
+    current: number,
+    previous: number
+): ChangeLevel {
+    if (previous === 0) return 'stable';
+    const changePercent = ((current - previous) / previous) * 100;
+
+    if (changePercent < -10) return 'decrease';
+    if (changePercent > 30) return 'big_increase';
+    if (changePercent > 10) return 'moderate_increase';
+    return 'stable';
+}
+
+/**
+ * Calculate volume change percentage
+ * 
+ * @param current - Current period volume
+ * @param previous - Previous period volume
+ * @returns Percentage change (can be negative)
+ */
+export function calculateVolumeChangePercent(
+    current: number,
+    previous: number
+): number {
+    if (previous === 0) return 0;
+    return Math.round(((current - previous) / previous) * 100);
+}
+
+/**
+ * Classify adherence level based on percentage
+ * 
+ * @param adherencePercent - Adherence percentage (0-100)
+ * @returns Risk level (inverse of adherence - high risk if low adherence)
+ */
+export function classifyAdherenceRisk(adherencePercent: number): RiskLevel {
+    if (adherencePercent >= 80) return 'none';
+    if (adherencePercent >= 60) return 'low';
+    if (adherencePercent >= 40) return 'medium';
+    return 'high';
+}
+
+/**
+ * Get display label for volume level
+ */
+export function getVolumeLevelLabel(level: VolumeLevel): string {
+    const labels: Record<VolumeLevel, string> = {
+        low: '🟡 Bajo',
+        medium: '🟢 Medio',
+        high: '🔴 Alto',
+    };
+    return labels[level];
+}
+
+/**
+ * Get display label for change level
+ */
+export function getChangeLevelLabel(level: ChangeLevel): string {
+    const labels: Record<ChangeLevel, string> = {
+        stable: '➡️ Estable',
+        moderate_increase: '📈 Aumento moderado',
+        big_increase: '⚠️ Aumento significativo',
+        decrease: '📉 Reducción',
+    };
+    return labels[level];
+}
+
+/**
+ * Get display label for risk level
+ */
+export function getRiskLevelLabel(level: RiskLevel): string {
+    const labels: Record<RiskLevel, string> = {
+        none: '✅ Sin riesgo',
+        low: '🟢 Riesgo bajo',
+        medium: '🟡 Riesgo medio',
+        high: '🔴 Riesgo alto',
+    };
+    return labels[level];
+}

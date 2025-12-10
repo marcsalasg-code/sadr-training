@@ -19,6 +19,7 @@ import { createExercisesSlice, type ExercisesSlice } from './exercisesSlice';
 import { createPlansSlice, type PlansSlice } from './plansSlice';
 import { createSettingsSlice, defaultSettings, type SettingsSlice } from './settingsSlice';
 import { createLabSlice, type LabSlice } from './labSlice';
+import { createConfigSlice, type ConfigSlice } from './configSlice';
 
 // ============================================
 // HELPERS
@@ -50,6 +51,7 @@ export type TrainingStore =
     & PlansSlice
     & SettingsSlice
     & LabSlice
+    & ConfigSlice
     & DataManagementSlice;
 
 // ============================================
@@ -67,6 +69,7 @@ export const useTrainingStore = create<TrainingStore>()(
             ...createPlansSlice(set, get, api),
             ...createSettingsSlice(set, get, api),
             ...createLabSlice(set, get, api),
+            ...createConfigSlice(set, get, api),
 
             // === DATA MANAGEMENT ===
             exportData: () => {

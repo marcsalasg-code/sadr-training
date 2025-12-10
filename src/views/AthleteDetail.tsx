@@ -31,16 +31,22 @@ import {
     SESSION_STATUS_COLORS,
     SESSION_STATUS_LABELS,
 } from '../components/athletes';
-import { useTrainingStore, useSessions, useExercises } from '../store/store';
+import { TrainingPlanModal } from '../components/dashboard';
+import { useTrainingStore, useSessions, useExercises, useTrainingPlans, useActiveTrainingPlanId } from '../store/store';
 import { calculateBMI, getBMICategory, experienceLevelLabels } from '../utils';
-import { getAthleteIntensityFatigueSeries } from '../utils/metrics';
+import {
+    getAthleteIntensityFatigueSeries,
+    classifyWeeklyVolume,
+    classifyFrequency,
+    getVolumeLevelLabel,
+} from '../utils/metrics';
 import {
     filterSessionsByAthlete,
     filterCompletedSessions,
     calculateTotalVolume,
     calculateAvgDuration,
 } from '../utils/dashboardMetrics';
-import type { Athlete, WorkoutSession } from '../types/types';
+import type { Athlete, WorkoutSession, ExperienceLevel } from '../types/types';
 
 export function AthleteDetail() {
     const { id } = useParams<{ id: string }>();
@@ -53,7 +59,16 @@ export function AthleteDetail() {
     const [isEditing, setIsEditing] = useState(false);
     const [editData, setEditData] = useState<Partial<Athlete>>({});
     const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [showTrainingPlanModal, setShowTrainingPlanModal] = useState(false);
     const [activeTab, setActiveTab] = useState('info');
+
+    // Training plan data for this athlete
+    const trainingPlans = useTrainingPlans();
+    const activeTrainingPlanId = useActiveTrainingPlanId();
+    const athletePlan = useMemo(() => {
+        return trainingPlans.find(p => p.athleteId === athlete?.id);
+    }, [trainingPlans, athlete?.id]);
+    const isActivePlan = athletePlan?.id === activeTrainingPlanId;
 
     // Sesiones del atleta - using centralized filter
     const athleteSessions = useMemo(() => {
@@ -246,6 +261,65 @@ export function AthleteDetail() {
                 </div>
             </div>
 
+            {/* Quick Actions - Coach Hub */}
+            <AuraPanel header={<span className="text-white text-sm font-medium">🚀 Acciones Rápidas</span>}>
+                <div className="flex flex-wrap gap-3">
+                    <AuraButton
+                        variant="secondary"
+                        onClick={() => navigate(`/calendar?athleteId=${athlete.id}`)}
+                    >
+                        📅 Ver Calendario
+                    </AuraButton>
+                    <AuraButton
+                        variant="secondary"
+                        onClick={() => navigate(`/analytics?athleteId=${athlete.id}`)}
+                    >
+                        📊 Ver Analytics
+                    </AuraButton>
+                    <AuraButton
+                        variant="gold"
+                        onClick={() => setShowTrainingPlanModal(true)}
+                    >
+                        🤖 Plan IA
+                    </AuraButton>
+                </div>
+            </AuraPanel>
+
+            {/* Active Plan Summary */}
+            {athletePlan && (
+                <AuraPanel header={
+                    <div className="flex items-center gap-2">
+                        <span className="text-white text-sm font-medium">📋 Plan Activo</span>
+                        {isActivePlan && <AuraBadge variant="gold">Principal</AuraBadge>}
+                    </div>
+                }>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                        <div className="text-center p-3 rounded-lg bg-[#141414]">
+                            <p className="text-lg font-semibold text-white">{athletePlan.name}</p>
+                            <p className="text-xs text-gray-500">Nombre del Plan</p>
+                        </div>
+                        <div className="text-center p-3 rounded-lg bg-[#141414]">
+                            <p className="text-lg font-semibold text-[var(--color-accent-gold)] capitalize">{athletePlan.objective}</p>
+                            <p className="text-xs text-gray-500">Objetivo</p>
+                        </div>
+                        <div className="text-center p-3 rounded-lg bg-[#141414]">
+                            <p className="text-lg font-semibold text-white">{athletePlan.sessionsPerWeek}</p>
+                            <p className="text-xs text-gray-500">Días/Semana</p>
+                        </div>
+                        <div className="text-center p-3 rounded-lg bg-[#141414]">
+                            <p className="text-lg font-semibold text-white">{athletePlan.dayPlans?.length || '-'}</p>
+                            <p className="text-xs text-gray-500">Días/Plan</p>
+                        </div>
+                    </div>
+                    <AuraButton
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => setShowTrainingPlanModal(true)}
+                    >
+                        Ver/Editar Plan Completo →
+                    </AuraButton>
+                </AuraPanel>
+            )}
             {/* Physical Data Section (FASE A) */}
             <AuraPanel header={<span className="text-white text-sm font-medium">📏 Datos Físicos</span>}>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -637,6 +711,13 @@ export function AthleteDetail() {
                     Se eliminarán también todas sus sesiones asociadas.
                 </p>
             </Modal>
+
+            {/* Training Plan Modal */}
+            <TrainingPlanModal
+                isOpen={showTrainingPlanModal}
+                onClose={() => setShowTrainingPlanModal(false)}
+                preselectedAthleteId={athlete.id}
+            />
         </div>
     );
 }

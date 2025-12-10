@@ -23,6 +23,7 @@ interface TrainingPlanModalProps {
     isOpen: boolean;
     onClose: () => void;
     onPlanCreated?: () => void;
+    preselectedAthleteId?: string; // When opening from AthleteDetail, pre-fill athlete
 }
 
 const weekDays: { id: WeekDay; label: string; short: string }[] = [
@@ -45,13 +46,13 @@ const objectives: { id: TrainingObjective; label: string; icon: string }[] = [
     { id: 'general_fitness', label: 'General Fitness', icon: '❤️' },
 ];
 
-export function TrainingPlanModal({ isOpen, onClose, onPlanCreated }: TrainingPlanModalProps) {
+export function TrainingPlanModal({ isOpen, onClose, onPlanCreated, preselectedAthleteId }: TrainingPlanModalProps) {
     const athletes = useAthletes();
     const { generatePlanWithAI, activePlan } = useTrainingPlan();
 
     const [selectedDays, setSelectedDays] = useState<WeekDay[]>([]);
     const [selectedObjective, setSelectedObjective] = useState<TrainingObjective>('strength');
-    const [selectedAthleteId, setSelectedAthleteId] = useState<string>('');
+    const [selectedAthleteId, setSelectedAthleteId] = useState<string>(preselectedAthleteId || '');
     const [planName, setPlanName] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
     const [generatedPlan, setGeneratedPlan] = useState<any>(null);

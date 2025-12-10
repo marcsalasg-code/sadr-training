@@ -10,8 +10,10 @@ import {
     AuraSection,
     AuraPanel,
     AuraButton,
+    AuraBadge,
 } from '../components/ui/aura';
 import { useSettings, useTrainingStore } from '../store/store';
+import type { MovementPattern, MuscleGroup } from '../core/exercises/exercise.model';
 
 export function SettingsView() {
     const settings = useSettings();
@@ -23,7 +25,15 @@ export function SettingsView() {
     const [pendingImportFile, setPendingImportFile] = useState<File | null>(null);
     const [importError, setImportError] = useState<string | null>(null);
     const [importSuccess, setImportSuccess] = useState<string | null>(null);
-    const [activeTab, setActiveTab] = useState<'training' | 'interface' | 'data'>('training');
+    const [activeTab, setActiveTab] = useState<'training' | 'categories' | 'interface' | 'data'>('training');
+
+    // TrainingConfig
+    const trainingConfig = useTrainingStore((s) => s.trainingConfig);
+    const updatePatternLabel = useTrainingStore((s) => s.updatePatternLabel);
+    const togglePattern = useTrainingStore((s) => s.togglePattern);
+    const updateMuscleGroupLabel = useTrainingStore((s) => s.updateMuscleGroupLabel);
+    const toggleMuscleGroup = useTrainingStore((s) => s.toggleMuscleGroup);
+    const updateAnalysisSettings = useTrainingStore((s) => s.updateAnalysisSettings);
 
     const handleSettingChange = <K extends keyof typeof settings>(
         key: K,
@@ -78,6 +88,7 @@ export function SettingsView() {
 
     const tabs = [
         { id: 'training', label: 'Training', icon: '🏋️' },
+        { id: 'categories', label: 'Categorías', icon: '🏷️' },
         { id: 'interface', label: 'Interface', icon: '🎨' },
         { id: 'data', label: 'Data', icon: '💾' },
     ] as const;
@@ -181,6 +192,99 @@ export function SettingsView() {
                                 checked={settings.vibrateOnRestEnd}
                                 onChange={(checked) => handleSettingChange('vibrateOnRestEnd', checked)}
                             />
+                        </div>
+                    </AuraPanel>
+                </div>
+            )}
+
+            {/* Categories Tab - TrainingConfig */}
+            {activeTab === 'categories' && (
+                <div className="space-y-6">
+                    <AuraPanel header={<span className="text-white font-medium">Patrones de Movimiento</span>}>
+                        <p className="text-sm text-gray-500 mb-4">
+                            Configura las categorías principales. Los cambios afectan a filtros y selectores.
+                        </p>
+                        <div className="space-y-2">
+                            {[...trainingConfig.patterns].sort((a, b) => a.order - b.order).map((pattern) => (
+                                <div
+                                    key={pattern.id}
+                                    className={`flex items-center justify-between p-3 rounded-lg ${pattern.enabled ? 'bg-[#141414]' : 'bg-[#0A0A0A] opacity-60'}`}
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-lg">{pattern.icon}</span>
+                                        <span className="text-white">{pattern.label}</span>
+                                        <AuraBadge variant="muted">{pattern.id}</AuraBadge>
+                                    </div>
+                                    <button
+                                        onClick={() => togglePattern(pattern.id, !pattern.enabled)}
+                                        className={`w-10 h-5 rounded-full transition-colors relative ${pattern.enabled ? 'bg-[var(--color-accent-gold)]' : 'bg-[#333]'}`}
+                                    >
+                                        <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${pattern.enabled ? 'left-5' : 'left-0.5'}`} />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </AuraPanel>
+
+                    <AuraPanel header={<span className="text-white font-medium">Grupos Musculares</span>}>
+                        <div className="space-y-2">
+                            {[...trainingConfig.muscleGroups].sort((a, b) => a.order - b.order).map((group) => (
+                                <div
+                                    key={group.id}
+                                    className={`flex items-center justify-between p-3 rounded-lg ${group.enabled ? 'bg-[#141414]' : 'bg-[#0A0A0A] opacity-60'}`}
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-lg">{group.icon}</span>
+                                        <span className="text-white">{group.label}</span>
+                                        <AuraBadge variant="muted">{group.id}</AuraBadge>
+                                    </div>
+                                    <button
+                                        onClick={() => toggleMuscleGroup(group.id, !group.enabled)}
+                                        className={`w-10 h-5 rounded-full transition-colors relative ${group.enabled ? 'bg-purple-600' : 'bg-[#333]'}`}
+                                    >
+                                        <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${group.enabled ? 'left-5' : 'left-0.5'}`} />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </AuraPanel>
+
+                    <AuraPanel header={<span className="text-white font-medium">Análisis y Métricas</span>}>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label className="block text-sm text-gray-400 mb-2">Método 1RM</label>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => updateAnalysisSettings({ defaultRMMethod: 'brzycki' })}
+                                        className={`flex-1 p-2 rounded-lg text-sm ${trainingConfig.analysis.defaultRMMethod === 'brzycki' ? 'bg-[var(--color-accent-gold)] text-black font-bold' : 'bg-[#1A1A1A] text-gray-400'}`}
+                                    >
+                                        Brzycki
+                                    </button>
+                                    <button
+                                        onClick={() => updateAnalysisSettings({ defaultRMMethod: 'epley' })}
+                                        className={`flex-1 p-2 rounded-lg text-sm ${trainingConfig.analysis.defaultRMMethod === 'epley' ? 'bg-[var(--color-accent-gold)] text-black font-bold' : 'bg-[#1A1A1A] text-gray-400'}`}
+                                    >
+                                        Epley
+                                    </button>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm text-gray-400 mb-2">Volumen</label>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => updateAnalysisSettings({ showVolumeAs: 'kg_total' })}
+                                        className={`flex-1 p-2 rounded-lg text-sm ${trainingConfig.analysis.showVolumeAs === 'kg_total' ? 'bg-[var(--color-accent-gold)] text-black font-bold' : 'bg-[#1A1A1A] text-gray-400'}`}
+                                    >
+                                        Kg Total
+                                    </button>
+                                    <button
+                                        onClick={() => updateAnalysisSettings({ showVolumeAs: 'tonnage' })}
+                                        className={`flex-1 p-2 rounded-lg text-sm ${trainingConfig.analysis.showVolumeAs === 'tonnage' ? 'bg-[var(--color-accent-gold)] text-black font-bold' : 'bg-[#1A1A1A] text-gray-400'}`}
+                                    >
+                                        Tonelaje
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </AuraPanel>
                 </div>

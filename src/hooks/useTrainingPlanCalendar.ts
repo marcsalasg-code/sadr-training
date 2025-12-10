@@ -186,6 +186,7 @@ export function useTrainingPlanCalendar(): UseTrainingPlanCalendarReturn {
                 scheduledDate: scheduledDate.toISOString(),
                 status: 'planned',
                 exercises: [],
+                origin: 'plan',
             };
 
             const session = addSession(sessionData);
@@ -263,6 +264,7 @@ export function useTrainingPlanCalendar(): UseTrainingPlanCalendarReturn {
                     scheduledDate: scheduledDate.toISOString(),
                     status: 'planned',
                     exercises: [],
+                    origin: 'plan',
                 };
 
                 addSession(sessionData);
