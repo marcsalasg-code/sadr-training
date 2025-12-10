@@ -5,3 +5,4 @@ export { useAthleteStats, type AthleteDetailStats } from './useAthleteStats';
 export { useCalendarView, type UseCalendarViewReturn } from './useCalendarView';
 export { useDashboardData, type UseDashboardDataReturn, type DashboardStats } from './useDashboardData';
 export { useAnalyticsData, type UseAnalyticsDataReturn, type AnalyticsMetrics } from './useAnalyticsData';
+export { useSessionMetrics, useMultiSessionMetrics, type ExecutedSet, type SessionStats } from './useSessionMetrics';
