@@ -6,10 +6,11 @@
  * - Sesiones recientes y próximas
  * - Intensidad/fatiga semanal
  * - Sesión activa y última completada
+ * - Métricas core (topSet, e1RM, RPE)
  */
 
 import { useMemo } from 'react';
-import { useSessions, useAthletes, useTemplates } from '../store/store';
+import { useSessions, useAthletes, useTemplates, useTrainingStore } from '../store/store';
 import { useTrainingPlan } from './useTrainingPlan';
 import { getWeeklyIntensityFatigue } from '../utils/metrics';
 import {
@@ -19,7 +20,15 @@ import {
     calculateCompletionRate,
     getWeekStart,
 } from '../utils/dashboardMetrics';
-import type { WorkoutSession, WorkoutTemplate } from '../types/types';
+import {
+    computeSessionVolumeKg,
+    computeAverageRPE,
+    computeBestE1RM,
+    computeTopSetLoadKg,
+    formatVolume,
+    type ExecutedSet,
+} from '../core/analysis/metrics';
+import type { WorkoutSession, WorkoutTemplate, SetEntry } from '../types/types';
 
 // ============================================
 // TYPES
@@ -47,10 +56,23 @@ export interface WeeklyIntensityFatigue {
     count: number;
 }
 
+/**
+ * Core metrics from metrics engine
+ */
+export interface CoreMetrics {
+    weekVolume: number;
+    weekVolumeFormatted: string;
+    weekTopSet: number | null;
+    weekBestE1RM: number | null;
+    weekAvgRPE: number | null;
+    weekTotalSets: number;
+}
+
 export interface UseDashboardDataReturn {
     // Statistics
     stats: DashboardStats;
     weeklyIntensityFatigue: WeeklyIntensityFatigue;
+    coreMetrics: CoreMetrics;
 
     // Session lists
     recentSessions: WorkoutSession[];
@@ -179,10 +201,60 @@ export function useDashboardData(): UseDashboardDataReturn {
     // Get athlete name helper
     const getAthleteName = (id: string) => athletes.find(a => a.id === id)?.name || 'Atleta';
 
+    // Core Metrics - using metrics engine for accurate calculations
+    const trainingConfig = useTrainingStore((s) => s.trainingConfig);
+    const coreMetrics = useMemo((): CoreMetrics => {
+        const now = new Date();
+        const thisWeekStart = new Date(now);
+        thisWeekStart.setDate(now.getDate() - now.getDay());
+        thisWeekStart.setHours(0, 0, 0, 0);
+
+        // Get completed sessions this week
+        const weekSessions = sessions.filter(s =>
+            s.status === 'completed' &&
+            s.completedAt &&
+            new Date(s.completedAt) >= thisWeekStart
+        );
+
+        // Convert to ExecutedSet[]
+        const allSets: ExecutedSet[] = [];
+        for (const session of weekSessions) {
+            for (const exercise of session.exercises) {
+                for (const set of exercise.sets) {
+                    if (set.isCompleted && set.actualReps && set.actualWeight !== undefined) {
+                        allSets.push({
+                            id: set.id,
+                            exerciseId: exercise.exerciseId,
+                            blockId: set.blockId || exercise.blockId,
+                            actualReps: set.actualReps,
+                            actualLoadKg: set.actualWeight,
+                            actualRPE: set.rpe ?? set.intensity,
+                            isWarmup: set.type === 'warmup',
+                        });
+                    }
+                }
+            }
+        }
+
+        const volumeDisplay = trainingConfig.analysis.showVolumeAs;
+        const rmMethod = trainingConfig.analysis.defaultRMMethod;
+        const weekVolume = computeSessionVolumeKg(allSets);
+
+        return {
+            weekVolume,
+            weekVolumeFormatted: formatVolume(weekVolume, volumeDisplay),
+            weekTopSet: computeTopSetLoadKg(allSets),
+            weekBestE1RM: computeBestE1RM(allSets, rmMethod),
+            weekAvgRPE: computeAverageRPE(allSets),
+            weekTotalSets: allSets.filter(s => !s.isWarmup).length,
+        };
+    }, [sessions, trainingConfig.analysis]);
+
     return {
         // Statistics
         stats,
         weeklyIntensityFatigue,
+        coreMetrics,
 
         // Session lists
         recentSessions,

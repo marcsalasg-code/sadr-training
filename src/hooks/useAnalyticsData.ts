@@ -7,11 +7,11 @@
  * - Volumen semanal
  * - Top ejercicios
  * - Session log
- * - 1RM y intensity metrics
+ * - 1RM y intensity metrics (now from core engine)
  */
 
 import { useMemo, useState } from 'react';
-import { useSessions, useAthletes, useExercises, useTrainingPlans } from '../store/store';
+import { useSessions, useAthletes, useExercises, useTrainingPlans, useTrainingStore } from '../store/store';
 import { getSessionLog } from '../utils/sessionLog';
 import { getWeeklyIntensityFatigue } from '../utils/metrics';
 import {
@@ -20,6 +20,14 @@ import {
     calculateTotalDuration,
     calculateAvgDuration,
 } from '../utils/dashboardMetrics';
+import {
+    computeSessionVolumeKg,
+    computeAverageRPE,
+    computeBestE1RM,
+    computeTopSetLoadKg,
+    formatVolume,
+    type ExecutedSet,
+} from '../core/analysis/metrics';
 import type { WorkoutSession, Athlete, Exercise, TrainingPlan } from '../types/types';
 
 // ============================================
@@ -49,6 +57,18 @@ export interface WeeklyIntensityFatigueData {
     count: number;
 }
 
+/**
+ * Core metrics from metrics engine
+ */
+export interface AnalyticsCoreMetrics {
+    totalVolume: number;
+    volumeFormatted: string;
+    topSetLoad: number | null;
+    bestE1RM: number | null;
+    avgRPE: number | null;
+    workingSets: number;
+}
+
 export interface UseAnalyticsDataReturn {
     // State
     selectedAthlete: string;
@@ -61,6 +81,7 @@ export interface UseAnalyticsDataReturn {
 
     // Calculations
     metrics: AnalyticsMetrics;
+    coreMetrics: AnalyticsCoreMetrics;
     weeklyVolume: [string, number][];
     maxWeekVolume: number;
     topExercises: TopExercise[];
@@ -183,6 +204,43 @@ export function useAnalyticsData(): UseAnalyticsDataReturn {
         return getWeeklyIntensityFatigue(filteredSessions);
     }, [filteredSessions]);
 
+    // Core Metrics - using metrics engine for accurate calculations
+    const trainingConfig = useTrainingStore((s) => s.trainingConfig);
+    const coreMetrics = useMemo((): AnalyticsCoreMetrics => {
+        // Convert filtered sessions to ExecutedSet[]
+        const allSets: ExecutedSet[] = [];
+        for (const session of filteredSessions) {
+            for (const exercise of session.exercises) {
+                for (const set of exercise.sets) {
+                    if (set.isCompleted && set.actualReps && set.actualWeight !== undefined) {
+                        allSets.push({
+                            id: set.id,
+                            exerciseId: exercise.exerciseId,
+                            blockId: set.blockId || exercise.blockId,
+                            actualReps: set.actualReps,
+                            actualLoadKg: set.actualWeight,
+                            actualRPE: set.rpe ?? set.intensity,
+                            isWarmup: set.type === 'warmup',
+                        });
+                    }
+                }
+            }
+        }
+
+        const volumeDisplay = trainingConfig.analysis.showVolumeAs;
+        const rmMethod = trainingConfig.analysis.defaultRMMethod;
+        const totalVolume = computeSessionVolumeKg(allSets);
+
+        return {
+            totalVolume,
+            volumeFormatted: formatVolume(totalVolume, volumeDisplay),
+            topSetLoad: computeTopSetLoadKg(allSets),
+            bestE1RM: computeBestE1RM(allSets, rmMethod),
+            avgRPE: computeAverageRPE(allSets),
+            workingSets: allSets.filter(s => !s.isWarmup).length,
+        };
+    }, [filteredSessions, trainingConfig.analysis]);
+
     return {
         // State
         selectedAthlete,
@@ -195,6 +253,7 @@ export function useAnalyticsData(): UseAnalyticsDataReturn {
 
         // Calculations
         metrics,
+        coreMetrics,
         weeklyVolume,
         maxWeekVolume,
         topExercises,
