@@ -2,6 +2,7 @@
  * ExercisesView - Gestión global de ejercicios
  * Lista, crea, edita y elimina ejercicios del catálogo
  * Rediseñado con UI Aura
+ * REFACTORED: Uses new Exercise model with pattern/muscleGroup from TrainingConfig
  */
 
 import { useState, useMemo } from 'react';
@@ -17,42 +18,32 @@ import {
     AuraEmptyState,
 } from '../components/ui/aura';
 import { useTrainingStore, useExercises } from '../store/store';
-import type { Exercise, MuscleGroup, ExerciseCategory } from '../types/types';
-
-const MUSCLE_GROUPS: { value: MuscleGroup; label: string }[] = [
-    { value: 'chest', label: 'Chest' },
-    { value: 'back', label: 'Back' },
-    { value: 'shoulders', label: 'Shoulders' },
-    { value: 'biceps', label: 'Biceps' },
-    { value: 'triceps', label: 'Triceps' },
-    { value: 'forearms', label: 'Forearms' },
-    { value: 'quads', label: 'Quads' },
-    { value: 'hamstrings', label: 'Hamstrings' },
-    { value: 'glutes', label: 'Glutes' },
-    { value: 'calves', label: 'Calves' },
-    { value: 'core', label: 'Core' },
-    { value: 'full_body', label: 'Full Body' },
-    { value: 'cardio', label: 'Cardio' },
-];
-
-const CATEGORIES: { value: ExerciseCategory; label: string }[] = [
-    { value: 'strength', label: 'Strength' },
-    { value: 'hypertrophy', label: 'Hypertrophy' },
-    { value: 'power', label: 'Power' },
-    { value: 'endurance', label: 'Endurance' },
-    { value: 'mobility', label: 'Mobility' },
-    { value: 'cardio', label: 'Cardio' },
-    { value: 'warmup', label: 'Warm-up' },
-    { value: 'cooldown', label: 'Cool-down' },
-];
+import type { Exercise, MuscleGroup, MovementPattern } from '../types/types';
 
 export function ExercisesView() {
     const exercises = useExercises();
-    const { addExercise, updateExercise, deleteExercise } = useTrainingStore();
+    const { addExercise, updateExercise, deleteExercise, trainingConfig } = useTrainingStore();
+
+    // Get options from TrainingConfig
+    const muscleGroupOptions = useMemo(() =>
+        trainingConfig.muscleGroups
+            .filter(mg => mg.enabled)
+            .sort((a, b) => a.order - b.order)
+            .map(mg => ({ value: mg.id as MuscleGroup, label: mg.label })),
+        [trainingConfig.muscleGroups]
+    );
+
+    const patternOptions = useMemo(() =>
+        trainingConfig.patterns
+            .filter(p => p.enabled)
+            .sort((a, b) => a.order - b.order)
+            .map(p => ({ value: p.id as MovementPattern, label: p.label })),
+        [trainingConfig.patterns]
+    );
 
     const [searchQuery, setSearchQuery] = useState('');
     const [filterMuscle, setFilterMuscle] = useState<MuscleGroup | ''>('');
-    const [filterCategory, setFilterCategory] = useState<ExerciseCategory | ''>('');
+    const [filterPattern, setFilterPattern] = useState<MovementPattern | ''>('');
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [editingExercise, setEditingExercise] = useState<Exercise | null>(null);
     const [showDeleteModal, setShowDeleteModal] = useState<Exercise | null>(null);
@@ -60,17 +51,23 @@ export function ExercisesView() {
     const filteredExercises = useMemo(() => {
         return exercises.filter(ex => {
             if (searchQuery && !ex.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
-            if (filterMuscle && !ex.muscleGroups.includes(filterMuscle)) return false;
-            if (filterCategory && ex.category !== filterCategory) return false;
+            if (filterMuscle && ex.muscleGroup !== filterMuscle) return false;
+            if (filterPattern && ex.pattern !== filterPattern) return false;
             return true;
         });
-    }, [exercises, searchQuery, filterMuscle, filterCategory]);
+    }, [exercises, searchQuery, filterMuscle, filterPattern]);
 
     const stats = useMemo(() => ({
         total: exercises.length,
         custom: exercises.filter(e => e.isCustom).length,
-        categories: new Set(exercises.map(e => e.category)).size,
+        patterns: new Set(exercises.map(e => e.pattern).filter(Boolean)).size,
     }), [exercises]);
+
+    // Helper to get label from config
+    const getMuscleGroupLabel = (id: MuscleGroup) =>
+        trainingConfig.muscleGroups.find(mg => mg.id === id)?.label || id;
+    const getPatternLabel = (id: MovementPattern) =>
+        trainingConfig.patterns.find(p => p.id === id)?.label || id;
 
     return (
         <div className="p-8 space-y-6 max-w-6xl mx-auto">
@@ -89,7 +86,7 @@ export function ExercisesView() {
             <AuraGrid cols={3} gap="md">
                 <AuraMetric label="Total" value={stats.total} />
                 <AuraMetric label="Custom" value={stats.custom} />
-                <AuraMetric label="Categories" value={stats.categories} />
+                <AuraMetric label="Patterns" value={stats.patterns} />
             </AuraGrid>
 
             {/* Filters */}
@@ -104,13 +101,13 @@ export function ExercisesView() {
                     <Select
                         value={filterMuscle}
                         onChange={(e) => setFilterMuscle(e.target.value as MuscleGroup | '')}
-                        options={[{ value: '', label: 'All muscles' }, ...MUSCLE_GROUPS]}
+                        options={[{ value: '', label: 'All muscles' }, ...muscleGroupOptions]}
                         className="w-40"
                     />
                     <Select
-                        value={filterCategory}
-                        onChange={(e) => setFilterCategory(e.target.value as ExerciseCategory | '')}
-                        options={[{ value: '', label: 'All categories' }, ...CATEGORIES]}
+                        value={filterPattern}
+                        onChange={(e) => setFilterPattern(e.target.value as MovementPattern | '')}
+                        options={[{ value: '', label: 'All patterns' }, ...patternOptions]}
                         className="w-40"
                     />
                 </div>
@@ -141,6 +138,8 @@ export function ExercisesView() {
                         <ExerciseCard
                             key={exercise.id}
                             exercise={exercise}
+                            getMuscleGroupLabel={getMuscleGroupLabel}
+                            getPatternLabel={getPatternLabel}
                             onEdit={() => setEditingExercise(exercise)}
                             onDelete={() => setShowDeleteModal(exercise)}
                         />
@@ -152,6 +151,8 @@ export function ExercisesView() {
             <ExerciseFormModal
                 isOpen={showCreateModal}
                 onClose={() => setShowCreateModal(false)}
+                muscleGroupOptions={muscleGroupOptions}
+                patternOptions={patternOptions}
                 onSave={(data) => { addExercise(data); setShowCreateModal(false); }}
             />
 
@@ -161,6 +162,8 @@ export function ExercisesView() {
                     isOpen={true}
                     exercise={editingExercise}
                     onClose={() => setEditingExercise(null)}
+                    muscleGroupOptions={muscleGroupOptions}
+                    patternOptions={patternOptions}
                     onSave={(data) => { updateExercise(editingExercise.id, data); setEditingExercise(null); }}
                 />
             )}
@@ -198,13 +201,13 @@ export function ExercisesView() {
 // Exercise Card
 interface ExerciseCardProps {
     exercise: Exercise;
+    getMuscleGroupLabel: (id: MuscleGroup) => string;
+    getPatternLabel: (id: MovementPattern) => string;
     onEdit: () => void;
     onDelete: () => void;
 }
 
-function ExerciseCard({ exercise, onEdit, onDelete }: ExerciseCardProps) {
-    const categoryLabel = CATEGORIES.find(c => c.value === exercise.category)?.label || exercise.category;
-
+function ExerciseCard({ exercise, getMuscleGroupLabel, getPatternLabel, onEdit, onDelete }: ExerciseCardProps) {
     return (
         <AuraCard hover className="relative group" onClick={onEdit}>
             <div className="flex items-start justify-between mb-2">
@@ -213,14 +216,18 @@ function ExerciseCard({ exercise, onEdit, onDelete }: ExerciseCardProps) {
             </div>
 
             <div className="flex flex-wrap gap-1 mb-3">
-                {exercise.muscleGroups.map(mg => {
-                    const label = MUSCLE_GROUPS.find(m => m.value === mg)?.label || mg;
-                    return <AuraBadge key={mg} size="sm" variant="muted">{label}</AuraBadge>;
-                })}
+                {exercise.muscleGroup && (
+                    <AuraBadge size="sm" variant="muted">{getMuscleGroupLabel(exercise.muscleGroup)}</AuraBadge>
+                )}
+                {exercise.pattern && (
+                    <AuraBadge size="sm" variant="info">{getPatternLabel(exercise.pattern)}</AuraBadge>
+                )}
             </div>
 
             <div className="flex items-center gap-4 pt-3 border-t border-[#2A2A2A] text-xs text-gray-500">
-                <span>📂 {categoryLabel}</span>
+                {exercise.tags && exercise.tags.length > 0 && (
+                    <span>🏷️ {exercise.tags.slice(0, 2).join(', ')}</span>
+                )}
                 {exercise.equipment && <span>🛠️ {exercise.equipment}</span>}
             </div>
 
@@ -244,35 +251,32 @@ function ExerciseCard({ exercise, onEdit, onDelete }: ExerciseCardProps) {
 interface ExerciseFormModalProps {
     isOpen: boolean;
     exercise?: Exercise;
+    muscleGroupOptions: { value: MuscleGroup; label: string }[];
+    patternOptions: { value: MovementPattern; label: string }[];
     onClose: () => void;
     onSave: (data: Omit<Exercise, 'id' | 'createdAt'>) => void;
 }
 
-function ExerciseFormModal({ isOpen, exercise, onClose, onSave }: ExerciseFormModalProps) {
+function ExerciseFormModal({ isOpen, exercise, muscleGroupOptions, patternOptions, onClose, onSave }: ExerciseFormModalProps) {
     const [name, setName] = useState(exercise?.name || '');
     const [description, setDescription] = useState(exercise?.description || '');
-    const [category, setCategory] = useState<ExerciseCategory>(exercise?.category || 'strength');
-    const [muscleGroups, setMuscleGroups] = useState<MuscleGroup[]>(exercise?.muscleGroups || []);
+    const [pattern, setPattern] = useState<MovementPattern>(exercise?.pattern || 'other');
+    const [muscleGroup, setMuscleGroup] = useState<MuscleGroup>(exercise?.muscleGroup || 'other');
     const [equipment, setEquipment] = useState(exercise?.equipment || '');
+    const [tags, setTags] = useState<string>(exercise?.tags?.join(', ') || '');
 
     const handleSave = () => {
-        if (!name.trim() || muscleGroups.length === 0) return;
+        if (!name.trim()) return;
         onSave({
             name: name.trim(),
             description: description.trim() || undefined,
-            category,
-            muscleGroups,
+            pattern,
+            muscleGroup,
+            tags: tags.split(',').map(t => t.trim()).filter(Boolean),
             equipment: equipment.trim() || undefined,
             isCustom: true,
+            updatedAt: new Date().toISOString(),
         });
-    };
-
-    const toggleMuscleGroup = (mg: MuscleGroup) => {
-        if (muscleGroups.includes(mg)) {
-            setMuscleGroups(muscleGroups.filter(m => m !== mg));
-        } else {
-            setMuscleGroups([...muscleGroups, mg]);
-        }
     };
 
     return (
@@ -284,7 +288,7 @@ function ExerciseFormModal({ isOpen, exercise, onClose, onSave }: ExerciseFormMo
             footer={
                 <>
                     <AuraButton variant="ghost" onClick={onClose}>Cancel</AuraButton>
-                    <AuraButton variant="gold" onClick={handleSave} disabled={!name.trim() || muscleGroups.length === 0}>
+                    <AuraButton variant="gold" onClick={handleSave} disabled={!name.trim()}>
                         {exercise ? 'Save' : 'Create'}
                     </AuraButton>
                 </>
@@ -298,34 +302,19 @@ function ExerciseFormModal({ isOpen, exercise, onClose, onSave }: ExerciseFormMo
                     autoFocus
                 />
 
-                <Select
-                    label="Category"
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value as ExerciseCategory)}
-                    options={CATEGORIES}
-                />
-
-                <div>
-                    <label className="block text-[10px] text-gray-500 uppercase tracking-widest mb-2">
-                        Muscle Groups *
-                    </label>
-                    <div className="flex flex-wrap gap-2">
-                        {MUSCLE_GROUPS.map(mg => (
-                            <button
-                                key={mg.value}
-                                onClick={() => toggleMuscleGroup(mg.value)}
-                                className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${muscleGroups.includes(mg.value)
-                                    ? 'bg-[var(--color-accent-gold)] text-black'
-                                    : 'bg-[#1A1A1A] text-gray-500 hover:bg-[#222]'
-                                    }`}
-                            >
-                                {mg.label}
-                            </button>
-                        ))}
-                    </div>
-                    {muscleGroups.length === 0 && (
-                        <p className="text-xs text-red-400 mt-1">Select at least one muscle group</p>
-                    )}
+                <div className="grid grid-cols-2 gap-4">
+                    <Select
+                        label="Movement Pattern"
+                        value={pattern}
+                        onChange={(e) => setPattern(e.target.value as MovementPattern)}
+                        options={patternOptions}
+                    />
+                    <Select
+                        label="Muscle Group"
+                        value={muscleGroup}
+                        onChange={(e) => setMuscleGroup(e.target.value as MuscleGroup)}
+                        options={muscleGroupOptions}
+                    />
                 </div>
 
                 <Input
@@ -333,6 +322,13 @@ function ExerciseFormModal({ isOpen, exercise, onClose, onSave }: ExerciseFormMo
                     value={equipment}
                     onChange={(e) => setEquipment(e.target.value)}
                     placeholder="Barbell, dumbbells, machine..."
+                />
+
+                <Input
+                    label="Tags (comma separated)"
+                    value={tags}
+                    onChange={(e) => setTags(e.target.value)}
+                    placeholder="compound, bilateral, push..."
                 />
 
                 <div>

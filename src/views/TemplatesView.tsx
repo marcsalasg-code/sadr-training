@@ -2,6 +2,7 @@
  * TemplatesView - Gestión de plantillas de entrenamiento
  * Con integración de generador IA
  * Rediseñado con UI Aura
+ * REFACTORED: Uses new Exercise model with pattern/muscleGroup
  */
 
 import { useState, useMemo } from 'react';
@@ -16,12 +17,14 @@ import {
     AuraBadge,
     AuraEmptyState,
 } from '../components/ui/aura';
-import { AthleteSelector } from '../components/session';
+import { AthleteSelector, SessionStructureEditor } from '../components/session';
 import { useTrainingStore, useTemplates, useExercises } from '../store/store';
 import { useTemplateGenerator, useAIEnabled } from '../ai';
 import { useTrainingPlan } from '../hooks';
 import { getRecommendedTemplates, getTemplateBadge } from '../utils/templateHelpers';
-import type { WorkoutTemplate, TemplateExercise, MuscleGroup, ExerciseCategory, Exercise } from '../types/types';
+import { createDefaultStructure } from '../core/sessions/sessionStructure.model';
+import type { WorkoutTemplate, TemplateExercise, Exercise } from '../types/types';
+import type { SessionStructure } from '../core/sessions/sessionStructure.model';
 
 export function TemplatesView() {
     const templates = useTemplates();
@@ -69,9 +72,11 @@ export function TemplatesView() {
                 if (!existingEx) {
                     existingEx = addExercise({
                         name: ex.name,
-                        muscleGroups: ['full_body' as MuscleGroup],
-                        category: 'strength' as ExerciseCategory,
+                        pattern: 'other',
+                        muscleGroup: 'full',
+                        tags: [],
                         isCustom: true,
+                        updatedAt: new Date().toISOString(),
                     });
                 }
                 return {
@@ -479,6 +484,10 @@ function TemplateFormModal({ isOpen, onClose, template, exercises, onSave, onAdd
     const [difficulty, setDifficulty] = useState<'beginner' | 'intermediate' | 'advanced'>(template?.difficulty || 'intermediate');
     const [estimatedDuration, setEstimatedDuration] = useState(template?.estimatedDuration || 60);
     const [templateExercises, setTemplateExercises] = useState<TemplateExercise[]>(template?.exercises || []);
+    const [structure, setStructure] = useState<SessionStructure>(
+        template?.structure || createDefaultStructure('Plantilla')
+    );
+    const [showStructure, setShowStructure] = useState(false);
     const [showAddEx, setShowAddEx] = useState(false);
     const [newExName, setNewExName] = useState('');
 
@@ -498,9 +507,11 @@ function TemplateFormModal({ isOpen, onClose, template, exercises, onSave, onAdd
         if (!newExName.trim()) return;
         const ex = onAddExercise({
             name: newExName,
-            muscleGroups: ['full_body' as MuscleGroup],
-            category: 'strength' as ExerciseCategory,
+            pattern: 'other',
+            muscleGroup: 'full',
+            tags: [],
             isCustom: true,
+            updatedAt: new Date().toISOString(),
         });
         handleAddEx(ex.id);
         setNewExName('');
@@ -515,6 +526,7 @@ function TemplateFormModal({ isOpen, onClose, template, exercises, onSave, onAdd
             difficulty,
             estimatedDuration,
             exercises: templateExercises,
+            structure,
             isArchived: false,
         });
     };
@@ -567,6 +579,30 @@ function TemplateFormModal({ isOpen, onClose, template, exercises, onSave, onAdd
                         className="w-full bg-[#0A0A0A] border border-[#333] rounded px-3 py-2 text-sm text-white focus:border-[var(--color-accent-gold)] outline-none resize-none"
                         placeholder="Description..."
                     />
+                </div>
+
+                {/* Session Structure Section */}
+                <div className="border border-[#2A2A2A] rounded-lg overflow-hidden">
+                    <button
+                        type="button"
+                        onClick={() => setShowStructure(!showStructure)}
+                        className="w-full flex items-center justify-between p-3 bg-[#141414] hover:bg-[#1A1A1A] transition-colors"
+                    >
+                        <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-gray-500 uppercase tracking-widest">Structure</span>
+                            <AuraBadge size="sm" variant="muted">{structure.blocks.length} blocks</AuraBadge>
+                        </div>
+                        <span className="text-gray-500">{showStructure ? '▲' : '▼'}</span>
+                    </button>
+                    {showStructure && (
+                        <div className="p-3 border-t border-[#2A2A2A]">
+                            <SessionStructureEditor
+                                structure={structure}
+                                onChange={setStructure}
+                                compact
+                            />
+                        </div>
+                    )}
                 </div>
 
                 <div>
@@ -673,7 +709,7 @@ function TemplateFormModal({ isOpen, onClose, template, exercises, onSave, onAdd
                                     className="w-full text-left p-3 rounded-lg bg-[#141414] border border-[#2A2A2A] hover:border-[var(--color-accent-gold)] transition-colors"
                                 >
                                     <p className="font-medium text-white">{ex.name}</p>
-                                    <p className="text-xs text-gray-500">{ex.muscleGroups.join(', ')}</p>
+                                    <p className="text-xs text-gray-500">{ex.muscleGroup || ex.muscleGroups?.join(', ') || 'Sin categoría'}</p>
                                 </button>
                             ))}
                         </div>
