@@ -54,7 +54,7 @@ export function TrainingConfigView() {
     return (
         <PageContainer
             title="Configuración de Entrenamiento"
-            description="Personaliza categorías, etiquetas y ajustes de análisis"
+            subtitle="Personaliza categorías, etiquetas y ajustes de análisis"
         >
             <div className="space-y-8 max-w-4xl mx-auto">
                 {/* Movement Patterns */}
