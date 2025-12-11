@@ -52,11 +52,34 @@ export type OneRMMethod = 'brzycki' | 'epley';
 export type VolumeDisplay = 'kg_total' | 'tonnage';
 
 /**
+ * Experience level for threshold classification
+ */
+export type ExperienceLevel = 'beginner' | 'intermediate' | 'advanced';
+
+/**
+ * Volume threshold range (in kg per week)
+ */
+export interface VolumeThresholdRange {
+    low: number;    // Below this = low volume
+    high: number;   // Above this = high volume
+}
+
+/**
+ * Customizable volume thresholds by experience level
+ */
+export interface VolumeThresholds {
+    beginner: VolumeThresholdRange;
+    intermediate: VolumeThresholdRange;
+    advanced: VolumeThresholdRange;
+}
+
+/**
  * Analysis configuration
  */
 export interface AnalysisConfig {
     defaultRMMethod: OneRMMethod;       // Método por defecto para 1RM
     showVolumeAs: VolumeDisplay;        // Cómo mostrar volumen
+    volumeThresholds: VolumeThresholds; // Umbrales personalizables
 }
 
 // ============================================
@@ -109,11 +132,21 @@ export const DEFAULT_MUSCLE_GROUPS: MuscleGroupConfig[] = [
 ];
 
 /**
+ * Default volume thresholds (in kg per week)
+ */
+export const DEFAULT_VOLUME_THRESHOLDS: VolumeThresholds = {
+    beginner: { low: 5000, high: 12000 },
+    intermediate: { low: 10000, high: 25000 },
+    advanced: { low: 20000, high: 45000 },
+};
+
+/**
  * Default analysis configuration
  */
 export const DEFAULT_ANALYSIS_CONFIG: AnalysisConfig = {
     defaultRMMethod: 'brzycki',
     showVolumeAs: 'kg_total',
+    volumeThresholds: DEFAULT_VOLUME_THRESHOLDS,
 };
 
 /**

@@ -1,11 +1,13 @@
 /**
  * SetRow - Componente de fila de serie con soporte para IA
- * Incluye inputs de peso/reps, RPE/RIR/notes, y predicción de carga IA
+ * 
+ * REFACTORED: Uses useSetRow hook for state management
+ * UI-only component - all logic in useSetRow
  */
 
-import { useState, useEffect, memo } from 'react';
+import { memo, useState } from 'react';
 import { Button } from '../ui';
-import { useLoadPrediction, useAIEnabled } from '../../ai';
+import { useSetRow } from '../../hooks/useSetRow';
 import type { SetEntry } from '../../types/types';
 
 export interface SetRowProps {
@@ -37,82 +39,57 @@ export function SetRow({
     previousSets,
     exerciseHistory,
 }: SetRowProps) {
-    // Estados de inputs
-    const [weight, setWeight] = useState(set.actualWeight || set.targetWeight || 0);
-    const [reps, setReps] = useState(set.actualReps || set.targetReps || 0);
-    const [rpe, setRpe] = useState<number | undefined>(set.rpe);
-    const [rir, setRir] = useState<number | undefined>(set.rir);
-    const [intensity, setIntensity] = useState<number>(set.intensity ?? set.rpe ?? 7);
-    const [notes, setNotes] = useState<string>(set.notes || '');
-    const [showExtras, setShowExtras] = useState(false);
     const [showCompletedNotes, setShowCompletedNotes] = useState(false);
 
-    // AI Prediction hook
-    const aiEnabled = useAIEnabled();
-    const { predict, prediction, isPredicting, isEnabled: predictionEnabled } = useLoadPrediction();
-    const [showPrediction, setShowPrediction] = useState(false);
+    // Use extracted hook for all logic
+    const {
+        weight,
+        reps,
+        rpe,
+        rir,
+        intensity,
+        notes,
+        showExtras,
+        showPrediction,
+        setWeight,
+        setReps,
+        setRpe,
+        setRir,
+        setIntensity,
+        setNotes,
+        setShowExtras,
+        setShowPrediction,
+        incrementWeight,
+        decrementWeight,
+        incrementReps,
+        decrementReps,
+        incrementIntensity,
+        decrementIntensity,
+        duplicatePreviousSet,
+        applyPrediction,
+        handleInputFocus,
+        requestPrediction,
+        getCompletionData,
+        getExtrasToggleText,
+        prediction,
+        isPredicting,
+        hasPrediction,
+        aiEnabled,
+    } = useSetRow({
+        set,
+        previousSets,
+        exerciseId,
+        exerciseName,
+        athleteId,
+        exerciseHistory,
+        weightIncrement,
+    });
 
-    // Construir contexto de predicción (con RPE/RIR para mejor predicción futura)
-    const getPredictionContext = () => {
-        const lastCompleted = previousSets[previousSets.length - 1];
-        return {
-            exerciseId,
-            exerciseName,
-            athleteId,
-            previousWeight: lastCompleted?.actualWeight || exerciseHistory[exerciseHistory.length - 1]?.weight,
-            previousReps: lastCompleted?.actualReps || exerciseHistory[exerciseHistory.length - 1]?.reps,
-            targetReps: set.targetReps,
-            previousSets: previousSets.length,
-            recentHistory: exerciseHistory,
-            // Datos de esfuerzo para mejor predicción
-            lastRpe: lastCompleted?.rpe,
-            lastRir: lastCompleted?.rir,
-        };
-    };
-
-    // Solicitar predicción manualmente
-    const requestPrediction = () => {
-        if (predictionEnabled && aiEnabled && !isPredicting) {
-            predict(getPredictionContext());
-        }
-    };
-
-    // Solicitar predicción automáticamente al montar (solo si hay contexto útil)
-    useEffect(() => {
-        if (!set.isCompleted && predictionEnabled && aiEnabled && (setIndex === 0 || previousSets.length > 0)) {
-            predict(getPredictionContext());
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [setIndex, previousSets.length, predictionEnabled, aiEnabled]);
-
-    // Aplicar sugerencia IA
-    const applySuggestion = () => {
-        if (prediction) {
-            setWeight(prediction.suggestedWeight);
-            setReps(prediction.suggestedReps);
-            setShowPrediction(false);
-        }
-    };
-
-    // Generar texto resumen de RPE/RIR para el toggle
-    const getExtrasToggleText = (): string => {
-        if (rpe && rir !== undefined) return `RPE ${rpe} | RIR ${rir}`;
-        if (rpe) return `RPE ${rpe}`;
-        if (rir !== undefined) return `RIR ${rir}`;
-        if (notes) return '📝';
-        return 'RPE/RIR';
-    };
+    const hasPreviousSet = previousSets.length > 0;
 
     // Handler para completar serie
     const handleComplete = () => {
-        onComplete({
-            actualWeight: weight,
-            actualReps: reps,
-            rpe: rpe ?? intensity, // Use intensity if rpe not set
-            rir,
-            intensity, // Always save intensity
-            notes: notes.trim() || undefined,
-        });
+        onComplete(getCompletionData());
     };
 
     // === RENDER: Serie completada ===
@@ -149,7 +126,7 @@ export function SetRow({
                             </div>
                         )}
 
-                        {/* Notes indicator (icono discreto) */}
+                        {/* Notes indicator */}
                         {hasNotes && (
                             <button
                                 onClick={() => setShowCompletedNotes(!showCompletedNotes)}
@@ -171,7 +148,7 @@ export function SetRow({
                     </button>
                 </div>
 
-                {/* Notas expandidas (discreto, colapsable) */}
+                {/* Notas expandidas */}
                 {showCompletedNotes && set.notes && (
                     <div className="ml-12 px-3 py-2 rounded-lg bg-[var(--color-bg-tertiary)] text-xs text-[var(--color-text-muted)] italic">
                         {set.notes}
@@ -184,16 +161,27 @@ export function SetRow({
     // === RENDER: Serie pendiente ===
     return (
         <div className="space-y-2">
-            <div className="flex items-center gap-4 p-3 rounded-lg bg-[var(--color-bg-tertiary)]">
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-[var(--color-bg-tertiary)]">
                 {/* Set number */}
                 <div className="w-8 h-8 rounded-full bg-[var(--color-bg-elevated)] flex items-center justify-center text-sm font-bold text-[var(--color-text-muted)]">
                     {setIndex + 1}
                 </div>
 
+                {/* Duplicate previous button */}
+                {hasPreviousSet && (
+                    <button
+                        onClick={duplicatePreviousSet}
+                        className="w-8 h-8 rounded bg-[var(--color-bg-elevated)] text-[var(--color-text-muted)] hover:text-[var(--color-accent-gold)] hover:bg-[var(--color-accent-gold)]/10 transition-colors flex items-center justify-center"
+                        title="Copiar serie anterior"
+                    >
+                        📋
+                    </button>
+                )}
+
                 {/* Weight input with +/- buttons */}
                 <div className="flex items-center gap-1">
                     <button
-                        onClick={() => setWeight(w => Math.max(0, w - weightIncrement))}
+                        onClick={decrementWeight}
                         className="w-8 h-8 rounded bg-[var(--color-bg-elevated)] text-[var(--color-text-muted)] hover:text-white"
                     >
                         −
@@ -202,10 +190,11 @@ export function SetRow({
                         type="number"
                         value={weight}
                         onChange={(e) => setWeight(Number(e.target.value))}
+                        onFocus={handleInputFocus}
                         className="w-20 text-center p-2 rounded bg-[var(--color-bg-secondary)] border border-[var(--color-border-default)] text-[var(--color-accent-beige)] font-bold"
                     />
                     <button
-                        onClick={() => setWeight(w => w + weightIncrement)}
+                        onClick={incrementWeight}
                         className="w-8 h-8 rounded bg-[var(--color-bg-elevated)] text-[var(--color-text-muted)] hover:text-white"
                     >
                         +
@@ -216,7 +205,7 @@ export function SetRow({
                 {/* Reps input */}
                 <div className="flex items-center gap-1">
                     <button
-                        onClick={() => setReps(r => Math.max(0, r - 1))}
+                        onClick={decrementReps}
                         className="w-8 h-8 rounded bg-[var(--color-bg-elevated)] text-[var(--color-text-muted)] hover:text-white"
                     >
                         −
@@ -225,10 +214,11 @@ export function SetRow({
                         type="number"
                         value={reps}
                         onChange={(e) => setReps(Number(e.target.value))}
+                        onFocus={handleInputFocus}
                         className="w-16 text-center p-2 rounded bg-[var(--color-bg-secondary)] border border-[var(--color-border-default)] text-[var(--color-accent-beige)] font-bold"
                     />
                     <button
-                        onClick={() => setReps(r => r + 1)}
+                        onClick={incrementReps}
                         className="w-8 h-8 rounded bg-[var(--color-bg-elevated)] text-[var(--color-text-muted)] hover:text-white"
                     >
                         +
@@ -236,10 +226,10 @@ export function SetRow({
                     <span className="text-xs text-[var(--color-text-muted)] ml-1">reps</span>
                 </div>
 
-                {/* Intensity quick selector (1-10, default 7) */}
+                {/* Intensity quick selector (1-10) */}
                 <div className="flex items-center gap-1" title="Intensidad 1-10">
                     <button
-                        onClick={() => setIntensity(i => Math.max(1, i - 1))}
+                        onClick={decrementIntensity}
                         className="w-6 h-6 rounded bg-[var(--color-bg-elevated)] text-[var(--color-text-muted)] hover:text-white text-xs"
                     >
                         −
@@ -254,47 +244,46 @@ export function SetRow({
                         {intensity}
                     </div>
                     <button
-                        onClick={() => setIntensity(i => Math.min(10, i + 1))}
+                        onClick={incrementIntensity}
                         className="w-6 h-6 rounded bg-[var(--color-bg-elevated)] text-[var(--color-text-muted)] hover:text-white text-xs"
                     >
                         +
                     </button>
                 </div>
 
-                {/* AI Suggestion Chip - Visible automatically */}
-                {predictionEnabled && aiEnabled && (
+                {/* AI Suggestion Chip */}
+                {aiEnabled && (
                     <>
                         {isPredicting && (
                             <div className="flex items-center gap-1 px-2 py-1 rounded text-xs bg-[var(--color-accent-gold)]/10 text-[var(--color-accent-gold)] animate-pulse">
                                 <span>⏳</span>
-                                <span>IA analizando...</span>
+                                <span>IA...</span>
                             </div>
                         )}
-                        {!isPredicting && prediction && (
+                        {!isPredicting && hasPrediction && prediction && (
                             <div className="flex items-center gap-1 px-2 py-1 rounded text-xs bg-[var(--color-accent-gold)]/20 border border-[var(--color-accent-gold)]/30">
                                 <span className="text-[var(--color-accent-gold)]">💡</span>
                                 <span className="text-[var(--color-accent-gold)] font-medium">
                                     {prediction.suggestedWeight}×{prediction.suggestedReps}
                                 </span>
                                 <button
-                                    onClick={applySuggestion}
-                                    className="ml-1 px-1.5 py-0.5 rounded bg-[var(--color-accent-gold)] text-black text-[10px] font-medium hover:opacity-90 transition-opacity"
+                                    onClick={applyPrediction}
+                                    className="ml-1 px-1.5 py-0.5 rounded bg-[var(--color-accent-gold)] text-black text-[10px] font-medium hover:opacity-90"
                                 >
                                     Aplicar
                                 </button>
                                 <button
                                     onClick={() => setShowPrediction(!showPrediction)}
                                     className="text-[var(--color-text-muted)] hover:text-[var(--color-accent-gold)] text-[10px]"
-                                    title="Ver detalles"
                                 >
                                     {showPrediction ? '▲' : '▼'}
                                 </button>
                             </div>
                         )}
-                        {!isPredicting && !prediction && (
+                        {!isPredicting && !hasPrediction && (
                             <button
                                 onClick={requestPrediction}
-                                className="px-2 py-1 rounded text-xs bg-[var(--color-bg-elevated)] text-[var(--color-text-muted)] hover:text-[var(--color-accent-gold)] transition-colors"
+                                className="px-2 py-1 rounded text-xs bg-[var(--color-bg-elevated)] text-[var(--color-text-muted)] hover:text-[var(--color-accent-gold)]"
                                 title="Solicitar sugerencia IA"
                             >
                                 💡
@@ -303,7 +292,7 @@ export function SetRow({
                     </>
                 )}
 
-                {/* RPE/RIR/Notes toggle - UX mejorada */}
+                {/* RPE/RIR/Notes toggle */}
                 <button
                     onClick={() => setShowExtras(!showExtras)}
                     className={`px-2 py-1 rounded text-xs transition-colors ${showExtras || rpe || rir !== undefined || notes
@@ -394,7 +383,7 @@ export function SetRow({
                     <div className="flex items-center gap-4 mb-2">
                         <span className="text-lg font-bold">{prediction.suggestedWeight} kg × {prediction.suggestedReps} reps</span>
                         <button
-                            onClick={applySuggestion}
+                            onClick={applyPrediction}
                             className="px-3 py-1 rounded bg-[var(--color-accent-gold)] text-black text-sm font-medium hover:opacity-90"
                         >
                             Aplicar
@@ -407,5 +396,5 @@ export function SetRow({
     );
 }
 
-// Memoize component to prevent unnecessary re-renders (Sprint 6.3)
+// Memoize component
 export default memo(SetRow);

@@ -8,12 +8,14 @@
  * - Top ejercicios
  * - Session log
  * - 1RM y intensity metrics (now from core engine)
+ * 
+ * PHASE 6: Refactored to use domain functions for analytics (LT5)
  */
 
 import { useMemo, useState } from 'react';
 import { useSessions, useAthletes, useExercises, useTrainingPlans, useTrainingStore } from '../store/store';
 import { getSessionLog } from '../utils/sessionLog';
-import { getWeeklyIntensityFatigue } from '../utils/metrics';
+import { getWeeklyIntensityFatigue } from '../core/analysis/metrics';
 import {
     filterCompletedSessions,
     calculateTotalVolume,
@@ -28,6 +30,18 @@ import {
     formatVolume,
     type ExecutedSet,
 } from '../core/analysis/metrics';
+import {
+    getCompletedSessions,
+    filterSessionsByAthlete,
+    filterSessionsByDateRange,
+} from '../domain/sessions';
+// PHASE 6: Use domain functions for analytics (LT5)
+import {
+    getWeeklyVolumeSeries,
+    getTopExercisesByVolume,
+    type WeeklyVolumePoint,
+    type TopExerciseData,
+} from '../domain/performance/metrics';
 import type { WorkoutSession, Athlete, Exercise, TrainingPlan } from '../types/types';
 
 // ============================================
@@ -109,7 +123,7 @@ export function useAnalyticsData(): UseAnalyticsDataReturn {
     const [selectedAthlete, setSelectedAthlete] = useState<string>('all');
     const [timeRange, setTimeRange] = useState<string>('month');
 
-    // Filter sessions by time range and athlete
+    // Filter sessions by time range and athlete - using domain layer
     const filteredSessions = useMemo(() => {
         let cutoff = new Date();
         if (timeRange === 'week') cutoff.setDate(cutoff.getDate() - 7);
@@ -117,10 +131,16 @@ export function useAnalyticsData(): UseAnalyticsDataReturn {
         else if (timeRange === '3months') cutoff.setMonth(cutoff.getMonth() - 3);
         else cutoff = new Date(0);
 
-        return sessions
-            .filter(s => s.status === 'completed')
-            .filter(s => selectedAthlete === 'all' || s.athleteId === selectedAthlete)
-            .filter(s => s.completedAt && new Date(s.completedAt) >= cutoff);
+        // Use domain layer for filtering
+        let result = getCompletedSessions(sessions);
+
+        if (selectedAthlete !== 'all') {
+            result = filterSessionsByAthlete(result, selectedAthlete);
+        }
+
+        result = filterSessionsByDateRange(result, cutoff);
+
+        return result;
     }, [sessions, selectedAthlete, timeRange]);
 
     // Main metrics
@@ -135,43 +155,24 @@ export function useAnalyticsData(): UseAnalyticsDataReturn {
         return { totalVolume, totalSets, totalReps, totalDuration, avgVolume, avgDuration, sessionCount: filteredSessions.length };
     }, [filteredSessions]);
 
-    // Weekly volume for chart
+    // Weekly volume for chart - using domain function (PHASE 6 LT5)
     const weeklyVolume = useMemo((): [string, number][] => {
-        const weeks: Record<string, number> = {};
-        filteredSessions.forEach(s => {
-            if (!s.completedAt) return;
-            const date = new Date(s.completedAt);
-            const weekStart = new Date(date);
-            weekStart.setDate(date.getDate() - date.getDay());
-            const weekKey = weekStart.toISOString().split('T')[0];
-            weeks[weekKey] = (weeks[weekKey] || 0) + (s.totalVolume || 0);
-        });
-        return Object.entries(weeks)
-            .sort(([a], [b]) => a.localeCompare(b))
-            .slice(-8);
+        const volumeSeries = getWeeklyVolumeSeries(filteredSessions, 8);
+        return volumeSeries.map(point => [point.weekStart, point.volume] as [string, number]);
     }, [filteredSessions]);
 
     // Max volume for chart scaling
     const maxWeekVolume = weeklyVolume.length > 0 ? Math.max(...weeklyVolume.map(([, v]) => v)) : 1;
 
-    // Top exercises by volume
+    // Top exercises by volume - using domain function (PHASE 6 LT5)
     const topExercises = useMemo((): TopExercise[] => {
-        const volumes: Record<string, { volume: number; sets: number }> = {};
-        filteredSessions.forEach(s => {
-            s.exercises?.forEach(ex => {
-                if (!volumes[ex.exerciseId]) volumes[ex.exerciseId] = { volume: 0, sets: 0 };
-                ex.sets.forEach(set => {
-                    if (set.isCompleted) {
-                        volumes[ex.exerciseId].volume += (set.actualWeight || 0) * (set.actualReps || 0);
-                        volumes[ex.exerciseId].sets++;
-                    }
-                });
-            });
-        });
-        return Object.entries(volumes)
-            .map(([id, data]) => ({ id, name: exercises.find(e => e.id === id)?.name || 'Ejercicio', ...data }))
-            .sort((a, b) => b.volume - a.volume)
-            .slice(0, 5);
+        const topData = getTopExercisesByVolume(filteredSessions, 5);
+        return topData.map(data => ({
+            id: data.exerciseId,
+            name: exercises.find(e => e.id === data.exerciseId)?.name || 'Ejercicio',
+            volume: data.volume,
+            sets: data.sets,
+        }));
     }, [filteredSessions, exercises]);
 
     // Session log

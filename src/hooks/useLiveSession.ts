@@ -1,23 +1,41 @@
 /**
  * useLiveSession - Hook for live training session management
  * 
- * Extracts all business logic from LiveSession.tsx for:
+ * PHASE 4 REFACTORED: Delegates session mutations to domain/sessions/workout
+ * 
+ * Responsibilities (orchestrator):
  * - Session state management
- * - Set/exercise handlers
+ * - Set/exercise handlers (via domain functions)
  * - 1RM auto-deduction
  * - Multi-athlete support
  * - Live statistics calculation
- * - Post-session 1RM recommendations (Phase 6)
  */
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTrainingStore, useSettings, useExercises, useSessions, useAthletes } from '../store/store';
 import { useRestTimer } from './useRestTimer';
+import { useLiveSessionModals } from './useLiveSessionModals';
+import { useLiveSessionSetHandlers } from './useLiveSessionSetHandlers';
 import { isMultiAthleteSession, getSessionAthleteIds } from '../utils/multiAthleteSession';
+import { canCompleteSession, sanitizeSession } from '../utils/sessionValidation';
 import { shouldAutoDeduceOneRM, autoDeduceOneRM, updateOneRepMax } from '../ai/performance/performanceEngine';
 import { analyzeSessionForOneRM } from '../ai/engines/oneRMEngine';
-import { computeSessionAvgIntensity } from '../utils/metrics';
+import { computeSessionAvgIntensity } from '../core/analysis/metrics';
+import { calculateSessionTotals, getSessionProgress } from '../domain/sessions';
+// PHASE 4: Import workout domain functions
+import {
+    completeSet as domainCompleteSet,
+    uncompleteSet as domainUncompleteSet,
+    addSet as domainAddSet,
+    removeSet as domainRemoveSet,
+    addExerciseToSession as domainAddExercise,
+    removeExerciseFromSession as domainRemoveExercise,
+    startSession as domainStartSession,
+    cancelSession as domainCancelSession,
+    getExerciseAtIndex,
+    getSetAtIndices,
+} from '../domain/sessions';
 import type { SetEntry, ExerciseEntry, WorkoutSession, Exercise, Athlete } from '../types/types';
 
 // ============================================
@@ -79,6 +97,7 @@ export interface UseLiveSessionReturn {
     handleUncompleteSet: (exerciseIndex: number, setIndex: number) => void;
     handleAddExercise: (exerciseId: string) => void;
     handleRemoveExercise: (exerciseIndex: number) => void;
+    handleStartSession: () => void;
     handleFinishSession: () => void;
     handleCancelSession: () => void;
     handleExitClick: () => void;
@@ -109,15 +128,21 @@ export function useLiveSession(sessionId: string | undefined): UseLiveSessionRet
     // ============================================
 
     const [activeExerciseIndex, setActiveExerciseIndex] = useState(0);
-    const [showAddExerciseModal, setShowAddExerciseModal] = useState(false);
-    const [showFinishModal, setShowFinishModal] = useState(false);
-    const [showRemoveExerciseModal, setShowRemoveExerciseModal] = useState(false);
-    const [showCancelModal, setShowCancelModal] = useState(false);
-    const [showExitModal, setShowExitModal] = useState(false);
     const [showFatiguePrompt, setShowFatiguePrompt] = useState<boolean>(() => {
         return session?.status === 'in_progress' && session?.preSessionFatigue == null;
     });
     const [sessionStartTime] = useState(() => session?.startedAt ? new Date(session.startedAt) : new Date());
+
+    // Modal states (extracted to sub-hook)
+    const modals = useLiveSessionModals();
+
+    // Set handlers (extracted to sub-hook)
+    const setHandlers = useLiveSessionSetHandlers({
+        session,
+        updateSession,
+        settings,
+        restTimer,
+    });
 
     // Multi-athlete
     const [activeAthleteId, setActiveAthleteId] = useState<string>(() => session?.athleteId || '');
@@ -129,15 +154,8 @@ export function useLiveSession(sessionId: string | undefined): UseLiveSessionRet
     // EFFECTS
     // ============================================
 
-    // Auto-start session if planned
-    useEffect(() => {
-        if (session && session.status === 'planned') {
-            updateSession(session.id, {
-                status: 'in_progress',
-                startedAt: new Date().toISOString(),
-            });
-        }
-    }, [session, updateSession]);
+    // PHASE 1: Removed auto-start - now requires explicit handleStartSession call
+    // Session stays in 'planned' until user clicks "Start Session"
 
     // ============================================
     // COMPUTED VALUES
@@ -146,23 +164,18 @@ export function useLiveSession(sessionId: string | undefined): UseLiveSessionRet
     const liveStats = useMemo((): LiveStats => {
         if (!session) return { totalSets: 0, completedSets: 0, totalVolume: 0, progressPercent: 0 };
 
-        let totalSets = 0;
-        let completedSets = 0;
-        let totalVolume = 0;
+        // Use domain layer functions for calculations
+        // Type assertion needed due to slight type differences between types/types.ts and domain/sessions/types.ts
+        const totals = calculateSessionTotals(session as Parameters<typeof calculateSessionTotals>[0]);
+        const totalSets = session.exercises.reduce((sum, ex) => sum + ex.sets.length, 0);
+        const progressPercent = getSessionProgress(session as Parameters<typeof getSessionProgress>[0]);
 
-        session.exercises.forEach(ex => {
-            ex.sets.forEach(set => {
-                totalSets++;
-                if (set.isCompleted) {
-                    completedSets++;
-                    totalVolume += (set.actualWeight || 0) * (set.actualReps || 0);
-                }
-            });
-        });
-
-        const progressPercent = totalSets > 0 ? Math.round((completedSets / totalSets) * 100) : 0;
-
-        return { totalSets, completedSets, totalVolume, progressPercent };
+        return {
+            totalSets,
+            completedSets: totals.totalSets,
+            totalVolume: totals.totalVolume,
+            progressPercent,
+        };
     }, [session]);
 
     const activeExercise = session?.exercises[activeExerciseIndex];
@@ -194,108 +207,47 @@ export function useLiveSession(sessionId: string | undefined): UseLiveSessionRet
     // HANDLERS
     // ============================================
 
-    const handleCompleteSet = useCallback((exerciseIndex: number, setIndex: number, data: Partial<SetEntry>) => {
-        if (!session) return;
-
-        const updatedExercises = [...session.exercises];
-        const set = updatedExercises[exerciseIndex].sets[setIndex];
-        updatedExercises[exerciseIndex].sets[setIndex] = {
-            ...set,
-            ...data,
-            isCompleted: true,
-            completedAt: new Date().toISOString(),
-        };
-        updateSession(session.id, { exercises: updatedExercises });
-
-        if (settings.autoStartRest) {
-            restTimer.start(set.restSeconds || settings.defaultRestSeconds);
-        }
-    }, [session, updateSession, settings, restTimer]);
-
-    const handleAddSet = useCallback((exerciseIndex: number) => {
-        if (!session) return;
-
-        const updatedExercises = [...session.exercises];
-        const exercise = updatedExercises[exerciseIndex];
-        const lastSet = exercise.sets[exercise.sets.length - 1];
-        const newSet: SetEntry = {
-            id: crypto.randomUUID(),
-            setNumber: exercise.sets.length + 1,
-            type: 'working',
-            targetReps: lastSet?.targetReps || 10,
-            targetWeight: lastSet?.actualWeight || lastSet?.targetWeight || 0,
-            restSeconds: settings.defaultRestSeconds,
-            isCompleted: false,
-        };
-        updatedExercises[exerciseIndex].sets.push(newSet);
-        updateSession(session.id, { exercises: updatedExercises });
-    }, [session, updateSession, settings]);
-
-    const handleRemoveSet = useCallback((exerciseIndex: number, setIndex: number) => {
-        if (!session) return;
-
-        const updatedExercises = [...session.exercises];
-        const exercise = updatedExercises[exerciseIndex];
-        if (exercise.sets.length <= 1) return;
-        exercise.sets = exercise.sets
-            .filter((_, i) => i !== setIndex)
-            .map((set, i) => ({ ...set, setNumber: i + 1 }));
-        updateSession(session.id, { exercises: updatedExercises });
-    }, [session, updateSession]);
-
-    const handleUncompleteSet = useCallback((exerciseIndex: number, setIndex: number) => {
-        if (!session) return;
-
-        const updatedExercises = [...session.exercises];
-        updatedExercises[exerciseIndex].sets[setIndex] = {
-            ...updatedExercises[exerciseIndex].sets[setIndex],
-            isCompleted: false,
-            completedAt: undefined,
-            actualWeight: undefined,
-            actualReps: undefined,
-        };
-        updateSession(session.id, { exercises: updatedExercises });
-    }, [session, updateSession]);
-
+    // PHASE 4: Exercise handlers use domain functions
     const handleAddExercise = useCallback((exerciseId: string) => {
         if (!session) return;
 
-        const newExercise: ExerciseEntry = {
-            id: crypto.randomUUID(),
-            exerciseId,
-            order: session.exercises.length,
-            sets: [{
-                id: crypto.randomUUID(),
-                setNumber: 1,
-                type: 'working',
-                targetReps: 10,
-                restSeconds: settings.defaultRestSeconds,
-                isCompleted: false,
-            }],
-        };
-        updateSession(session.id, { exercises: [...session.exercises, newExercise] });
-        setShowAddExerciseModal(false);
+        const updates = domainAddExercise(session, exerciseId, {
+            restSeconds: settings.defaultRestSeconds,
+        });
+        updateSession(session.id, updates);
+        modals.setShowAddExerciseModal(false);
+        // Navigate to the new exercise (last one)
         setActiveExerciseIndex(session.exercises.length);
-    }, [session, updateSession, settings]);
+    }, [session, updateSession, settings, modals]);
 
+    // PHASE 4: Use domain function for removing exercises
     const handleRemoveExercise = useCallback((exerciseIndex: number) => {
         if (!session) return;
 
-        const updatedExercises = session.exercises
-            .filter((_, i) => i !== exerciseIndex)
-            .map((ex, i) => ({ ...ex, order: i }));
-        updateSession(session.id, { exercises: updatedExercises });
+        const exercise = getExerciseAtIndex(session, exerciseIndex);
+        if (!exercise) return;
 
+        const updates = domainRemoveExercise(session, exercise.id);
+        updateSession(session.id, updates);
+
+        // Adjust active index
         if (exerciseIndex <= activeExerciseIndex && activeExerciseIndex > 0) {
             setActiveExerciseIndex(prev => prev - 1);
-        } else if (updatedExercises.length === 0) {
+        } else if ((updates.exercises?.length || 0) === 0) {
             setActiveExerciseIndex(0);
         }
-        setShowRemoveExerciseModal(false);
-    }, [session, updateSession, activeExerciseIndex]);
+        modals.setShowRemoveExerciseModal(false);
+    }, [session, updateSession, activeExerciseIndex, modals]);
 
     const handleFinishSession = useCallback(() => {
         if (!session) return;
+
+        // Validate session can be completed
+        const { canComplete, reason } = canCompleteSession(session);
+        if (!canComplete) {
+            console.warn('[Session Validation] Cannot complete session:', reason);
+            // Note: UI could show warning here, but we allow completion with warning
+        }
 
         const endTime = new Date();
         const durationMinutes = Math.round((endTime.getTime() - sessionStartTime.getTime()) / 60000);
@@ -373,11 +325,11 @@ export function useLiveSession(sessionId: string | undefined): UseLiveSessionRet
 
     const handleExitClick = useCallback(() => {
         if (session?.status === 'in_progress' && liveStats.completedSets > 0) {
-            setShowExitModal(true);
+            modals.setShowExitModal(true);
         } else {
             navigate('/sessions');
         }
-    }, [session, liveStats.completedSets, navigate]);
+    }, [session, liveStats.completedSets, navigate, modals]);
 
     const handleFatigueConfirm = useCallback((value: number) => {
         if (!session) return;
@@ -388,6 +340,15 @@ export function useLiveSession(sessionId: string | undefined): UseLiveSessionRet
     const handleFatigueSkip = useCallback(() => {
         setShowFatiguePrompt(false);
     }, []);
+
+    // PHASE 4: Use domain function for starting session
+    const handleStartSession = useCallback(() => {
+        if (!session || session.status !== 'planned') return;
+        const updates = domainStartSession(session);
+        updateSession(session.id, updates);
+        // Show fatigue prompt after starting
+        setShowFatiguePrompt(true);
+    }, [session, updateSession]);
 
     // ============================================
     // RETURN
@@ -413,28 +374,22 @@ export function useLiveSession(sessionId: string | undefined): UseLiveSessionRet
         setActiveExerciseIndex,
         showFatiguePrompt,
 
-        // Modals
-        showAddExerciseModal,
-        setShowAddExerciseModal,
-        showFinishModal,
-        setShowFinishModal,
-        showRemoveExerciseModal,
-        setShowRemoveExerciseModal,
-        showCancelModal,
-        setShowCancelModal,
-        showExitModal,
-        setShowExitModal,
+        // Modals (from sub-hook)
+        ...modals,
 
         // Rest timer
         restTimer,
 
-        // Handlers
-        handleCompleteSet,
-        handleAddSet,
-        handleRemoveSet,
-        handleUncompleteSet,
+        // Handlers (set operations from sub-hook)
+        handleCompleteSet: setHandlers.handleCompleteSet,
+        handleAddSet: setHandlers.handleAddSet,
+        handleRemoveSet: setHandlers.handleRemoveSet,
+        handleUncompleteSet: setHandlers.handleUncompleteSet,
+        // Exercise handlers (local)
         handleAddExercise,
         handleRemoveExercise,
+        // Session handlers (local)
+        handleStartSession,
         handleFinishSession,
         handleCancelSession,
         handleExitClick,

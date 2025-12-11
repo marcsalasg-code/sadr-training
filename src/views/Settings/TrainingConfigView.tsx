@@ -27,6 +27,7 @@ import {
     AuraDivider,
 } from '../../components/ui/aura';
 import { PageContainer } from '../../components/layout';
+import { OneRMAnchorManager } from '../../components/common/OneRMAnchorManager';
 import type { MovementPattern, MuscleGroup } from '../../core/exercises/exercise.model';
 import type { OneRMMethod, VolumeDisplay } from '../../core/config/trainingConfig.model';
 
@@ -46,6 +47,7 @@ export function TrainingConfigView() {
     const [editingPatternId, setEditingPatternId] = useState<MovementPattern | null>(null);
     const [editingMuscleGroupId, setEditingMuscleGroupId] = useState<MuscleGroup | null>(null);
     const [showResetConfirm, setShowResetConfirm] = useState(false);
+    const [showAnchorManager, setShowAnchorManager] = useState(false);
 
     // Sorted patterns and muscle groups
     const sortedPatterns = [...trainingConfig.patterns].sort((a, b) => a.order - b.order);
@@ -256,6 +258,92 @@ export function TrainingConfigView() {
                             </div>
                         </AuraPanel>
                     </div>
+
+                    {/* Volume Thresholds */}
+                    <AuraPanel header={<span className="text-white text-sm">Umbrales de Volumen Semanal (kg)</span>}>
+                        <p className="text-xs text-gray-500 mb-4">
+                            Define los límites para clasificar el volumen como bajo/medio/alto según nivel de experiencia.
+                        </p>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {(['beginner', 'intermediate', 'advanced'] as const).map(level => (
+                                <div key={level} className="bg-[#1A1A1A] p-3 rounded-lg">
+                                    <p className="text-sm text-white font-medium mb-2">
+                                        {level === 'beginner' ? '🌱 Principiante' :
+                                            level === 'intermediate' ? '💪 Intermedio' : '🏆 Avanzado'}
+                                    </p>
+                                    <div className="space-y-2">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs text-gray-500 w-12">Bajo:</span>
+                                            <input
+                                                type="number"
+                                                value={trainingConfig.analysis.volumeThresholds[level].low}
+                                                onChange={(e) => updateAnalysisSettings({
+                                                    volumeThresholds: {
+                                                        ...trainingConfig.analysis.volumeThresholds,
+                                                        [level]: {
+                                                            ...trainingConfig.analysis.volumeThresholds[level],
+                                                            low: Number(e.target.value)
+                                                        }
+                                                    }
+                                                })}
+                                                className="flex-1 px-2 py-1 bg-[#0A0A0A] border border-[#2A2A2A] rounded text-sm text-white w-20"
+                                                min={0}
+                                                step={1000}
+                                            />
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs text-gray-500 w-12">Alto:</span>
+                                            <input
+                                                type="number"
+                                                value={trainingConfig.analysis.volumeThresholds[level].high}
+                                                onChange={(e) => updateAnalysisSettings({
+                                                    volumeThresholds: {
+                                                        ...trainingConfig.analysis.volumeThresholds,
+                                                        [level]: {
+                                                            ...trainingConfig.analysis.volumeThresholds[level],
+                                                            high: Number(e.target.value)
+                                                        }
+                                                    }
+                                                })}
+                                                className="flex-1 px-2 py-1 bg-[#0A0A0A] border border-[#2A2A2A] rounded text-sm text-white w-20"
+                                                min={0}
+                                                step={1000}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </AuraPanel>
+                </AuraSection>
+
+                {/* 1RM Anchor Exercises */}
+                <AuraSection
+                    title="Ejercicios Ancla 1RM"
+                    subtitle="Configura qué ejercicios sirven como referencia de 1RM"
+                >
+                    {showAnchorManager ? (
+                        <AuraPanel>
+                            <OneRMAnchorManager onClose={() => setShowAnchorManager(false)} />
+                        </AuraPanel>
+                    ) : (
+                        <AuraPanel>
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-gray-400 text-sm">
+                                        Define los ejercicios principales que servirán como referencia
+                                        para calcular cargas en ejercicios similares.
+                                    </p>
+                                </div>
+                                <AuraButton
+                                    variant="secondary"
+                                    onClick={() => setShowAnchorManager(true)}
+                                >
+                                    ⚙️ Configurar Anclas
+                                </AuraButton>
+                            </div>
+                        </AuraPanel>
+                    )}
                 </AuraSection>
 
                 {/* Reset */}

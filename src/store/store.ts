@@ -26,6 +26,9 @@ import { createConfigSlice, type ConfigSlice } from './configSlice';
 import { migrateExerciseCatalog } from '../core/exercises/exercise.migration';
 import { migrateSessions, migrateTemplates } from '../core/sessions/sessionStructure.migration';
 
+// Import validation functions
+import { calculateSessionTotals } from '../domain/sessions/calculations';
+
 // ============================================
 // HELPERS
 // ============================================
@@ -247,7 +250,9 @@ export const useTrainingStore = create<TrainingStore>()(
                 }
                 if (!state) return;
 
-                // Check and run migrations
+                // Check and run migrations by mutating state directly
+                // Note: We mutate the state object directly here because useTrainingStore
+                // is not yet fully initialized at this point (circular reference issue)
                 let needsUpdate = false;
 
                 // Migrate exercises to new model (pattern, muscleGroup, tags)
@@ -258,7 +263,8 @@ export const useTrainingStore = create<TrainingStore>()(
                     if (hasLegacyExercises) {
                         console.log('[Migration] Migrating exercises to new model...');
                         const migratedExercises = migrateExerciseCatalog(state.exercises);
-                        useTrainingStore.setState({ exercises: migratedExercises as typeof state.exercises });
+                        // Direct mutation - safe in onRehydrateStorage
+                        state.exercises = migratedExercises as typeof state.exercises;
                         needsUpdate = true;
                     }
                 }
@@ -271,7 +277,8 @@ export const useTrainingStore = create<TrainingStore>()(
                     if (hasLegacySessions) {
                         console.log('[Migration] Migrating sessions to include structure...');
                         const migratedSessions = migrateSessions(state.sessions);
-                        useTrainingStore.setState({ sessions: migratedSessions });
+                        // Direct mutation - safe in onRehydrateStorage
+                        state.sessions = migratedSessions;
                         needsUpdate = true;
                     }
                 }
@@ -284,7 +291,37 @@ export const useTrainingStore = create<TrainingStore>()(
                     if (hasLegacyTemplates) {
                         console.log('[Migration] Migrating templates to include structure...');
                         const migratedTemplates = migrateTemplates(state.templates);
-                        useTrainingStore.setState({ templates: migratedTemplates });
+                        // Direct mutation - safe in onRehydrateStorage
+                        state.templates = migratedTemplates;
+                        needsUpdate = true;
+                    }
+                }
+
+                // Validate and recalculate volumes for completed sessions
+                if (state.sessions && state.sessions.length > 0) {
+                    const completedSessions = state.sessions.filter(
+                        (s: { status: string }) => s.status === 'completed'
+                    );
+
+                    let volumeFixCount = 0;
+                    for (const session of completedSessions) {
+                        const calculated = calculateSessionTotals(session);
+                        const storedVolume = session.totalVolume || 0;
+
+                        // Fix if difference > 1% or volume is 0 but should have data
+                        const diff = Math.abs(calculated.totalVolume - storedVolume);
+                        const percentDiff = storedVolume > 0 ? (diff / storedVolume) * 100 : (calculated.totalVolume > 0 ? 100 : 0);
+
+                        if (percentDiff > 1 || (storedVolume === 0 && calculated.totalVolume > 0)) {
+                            session.totalVolume = calculated.totalVolume;
+                            session.totalSets = calculated.totalSets;
+                            session.totalReps = calculated.totalReps;
+                            volumeFixCount++;
+                        }
+                    }
+
+                    if (volumeFixCount > 0) {
+                        console.log(`[Validation] Fixed volume for ${volumeFixCount} sessions`);
                         needsUpdate = true;
                     }
                 }

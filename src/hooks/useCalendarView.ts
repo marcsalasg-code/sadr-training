@@ -13,7 +13,15 @@ import { useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTrainingStore, useSessions, useAthletes, useTemplates } from '../store/store';
 import { useTrainingPlan } from './useTrainingPlan';
-import { isTrainingDay, getDayPlanFor } from '../utils';
+import { filterSessionsByAthlete } from '../domain/sessions';
+// PHASE 6: Use domain calendar functions (LT2)
+import {
+    isTrainingDay,
+    getDayPlanForDate,
+    groupSessionsByDate,
+    MONTH_NAMES_FULL,
+    DAY_NAMES_SHORT,
+} from '../domain/plans/calendar';
 import type { WorkoutSession, TrainingPlan, DayPlan, Athlete } from '../types/types';
 
 // ============================================
@@ -144,10 +152,13 @@ export function useCalendarView(): UseCalendarViewReturn {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
 
-    // Filter sessions by athlete
+    // Filter sessions by athlete - using domain layer
     const filteredSessions = useMemo(() => {
         if (selectedAthleteId === 'all') return sessions;
-        return sessions.filter(s => s.athleteId === selectedAthleteId);
+        return filterSessionsByAthlete(
+            sessions as Parameters<typeof filterSessionsByAthlete>[0],
+            selectedAthleteId
+        ) as WorkoutSession[];
     }, [sessions, selectedAthleteId]);
 
     // Generate calendar days (Monday = first day)
@@ -173,15 +184,15 @@ export function useCalendarView(): UseCalendarViewReturn {
         return days;
     }, [year, month]);
 
-    // Group sessions by date
+    // Group sessions by date - using domain function (PHASE 6 LT2)
     const sessionsByDate = useMemo(() => {
-        const map: Record<string, WorkoutSession[]> = {};
-        filteredSessions.forEach(s => {
-            const dateStr = (s.scheduledDate || s.completedAt || s.createdAt).split('T')[0];
-            if (!map[dateStr]) map[dateStr] = [];
-            map[dateStr].push(s);
+        const mapResult = groupSessionsByDate(filteredSessions as Parameters<typeof groupSessionsByDate>[0]);
+        // Convert Map to Record for backwards compatibility
+        const record: Record<string, WorkoutSession[]> = {};
+        mapResult.forEach((sessions, key) => {
+            record[key] = sessions as WorkoutSession[];
         });
-        return map;
+        return record;
     }, [filteredSessions]);
 
     // Navigation handlers
@@ -292,9 +303,13 @@ export function useCalendarView(): UseCalendarViewReturn {
         }
     }, [navigate]);
 
-    // Training plan helpers
-    const isTrainingDayForDate = useCallback((date: Date) => isTrainingDay(date, activePlan), [activePlan]);
-    const getDayPlanForDate = useCallback((date: Date) => getDayPlanFor(date, activePlan), [activePlan]);
+    // Training plan helpers - using domain functions (PHASE 6 LT2)
+    const isTrainingDayForDate = useCallback((date: Date) => {
+        return activePlan ? isTrainingDay([activePlan], date) : false;
+    }, [activePlan]);
+    const getDayPlanForDateCallback = useCallback((date: Date) => {
+        return activePlan ? getDayPlanForDate([activePlan], date) : undefined;
+    }, [activePlan]);
 
     // Selected day sessions
     const selectedDaySessions = useMemo(() =>
@@ -349,7 +364,7 @@ export function useCalendarView(): UseCalendarViewReturn {
         activePlan,
         weeklyAdherence,
         isTrainingDayForDate,
-        getDayPlanForDate,
+        getDayPlanForDate: getDayPlanForDateCallback,
 
         // Utilities
         isToday,

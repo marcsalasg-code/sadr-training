@@ -20,13 +20,14 @@ import {
     AuraCard,
     AuraEmptyState,
 } from '../components/ui/aura';
-import { TrainingPlanModal, AIInsightBanner, useAIInsight, TodayTrainingWidget } from '../components/dashboard';
+import { TrainingPlanModal, AIInsightBanner, useAIInsight, TodayTrainingWidget, WeeklyScheduleWidget } from '../components/dashboard';
 import { FatigueIndicator } from '../components/common';
-import { useDashboardData } from '../hooks';
+import { useDashboardData, useSessionBuilder } from '../hooks';
 import { formatDateShort } from '../utils';
 
 export function Dashboard() {
     const navigate = useNavigate();
+    const { repeatLastSession } = useSessionBuilder();
 
     const {
         stats,
@@ -70,7 +71,10 @@ export function Dashboard() {
                 />
             )}
 
-            {/* COACH HUB: Today's Training Widget */}
+            {/* PHASE 1: Weekly Schedule Hub - Primary coach view */}
+            <WeeklyScheduleWidget />
+
+            {/* LEGACY: Today's Training Widget - Now secondary, shows athlete-specific sessions */}
             <TodayTrainingWidget />
 
             {/* Header Section */}
@@ -297,7 +301,7 @@ export function Dashboard() {
                         <AuraButton
                             variant="secondary"
                             size="sm"
-                            onClick={() => navigate(`/sessions?duplicate=${lastCompletedSession.id}`)}
+                            onClick={() => repeatLastSession(lastCompletedSession.athleteId)}
                         >
                             🔄 Repeat last session
                         </AuraButton>

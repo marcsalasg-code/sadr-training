@@ -2,14 +2,13 @@
  * Dashboard Metrics - Re-exports from centralized metrics module
  * 
  * @deprecated This file is maintained for backward compatibility.
- * Import directly from '../utils/metrics' or '../utils/dateHelpers' instead.
+ * Import directly from '../core/analysis/metrics' instead.
  * 
  * All functions are now consolidated in:
- * - src/utils/metrics.ts (session metrics, calculations)
- * - src/utils/dateHelpers.ts (date utilities)
+ * - src/core/analysis/metrics.ts (SINGLE SOURCE OF TRUTH)
  */
 
-// Re-export all metric functions from the centralized module
+// Re-export all metric functions from the centralized core module
 export {
     // Types
     type SessionMetrics,
@@ -54,7 +53,7 @@ export {
     // Templates
     getTemplateUsage,
     getMostUsedTemplateId,
-} from './metrics';
+} from '../core/analysis/metrics';
 
 // Re-export date helpers for backward compatibility
 export {
@@ -68,3 +67,4 @@ export {
     isToday,
     isSameDay,
 } from './dateHelpers';
+

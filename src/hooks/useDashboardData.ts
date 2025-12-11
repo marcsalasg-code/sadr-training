@@ -12,7 +12,7 @@
 import { useMemo } from 'react';
 import { useSessions, useAthletes, useTemplates, useTrainingStore } from '../store/store';
 import { useTrainingPlan } from './useTrainingPlan';
-import { getWeeklyIntensityFatigue } from '../utils/metrics';
+import { getWeeklyIntensityFatigue } from '../core/analysis/metrics';
 import {
     calculateWeeklyStats,
     countActiveAthletes,
@@ -28,6 +28,11 @@ import {
     formatVolume,
     type ExecutedSet,
 } from '../core/analysis/metrics';
+import {
+    filterSessionsByStatus,
+    getCompletedSessions,
+    sortSessionsByDate,
+} from '../domain/sessions';
 import type { WorkoutSession, WorkoutTemplate, SetEntry } from '../types/types';
 
 // ============================================
@@ -170,12 +175,11 @@ export function useDashboardData(): UseDashboardDataReturn {
         return getWeeklyIntensityFatigue(weekSessions);
     }, [sessions]);
 
-    // Recent sessions
+    // Recent sessions - using domain layer functions
     const recentSessions = useMemo(() => {
-        return sessions
-            .filter(s => s.status === 'completed')
-            .sort((a, b) => new Date(b.completedAt || 0).getTime() - new Date(a.completedAt || 0).getTime())
-            .slice(0, 5);
+        const completed = getCompletedSessions(sessions);
+        const sorted = sortSessionsByDate(completed);
+        return sorted.slice(0, 5);
     }, [sessions]);
 
     // Upcoming sessions
@@ -191,11 +195,11 @@ export function useDashboardData(): UseDashboardDataReturn {
         return sessions.find(s => s.status === 'in_progress');
     }, [sessions]);
 
-    // Last completed session for duplication
+    // Last completed session for duplication - using domain layer
     const lastCompletedSession = useMemo(() => {
-        return sessions
-            .filter(s => s.status === 'completed')
-            .sort((a, b) => new Date(b.completedAt || 0).getTime() - new Date(a.completedAt || 0).getTime())[0];
+        const completed = getCompletedSessions(sessions);
+        const sorted = sortSessionsByDate(completed);
+        return sorted[0];
     }, [sessions]);
 
     // Get athlete name helper

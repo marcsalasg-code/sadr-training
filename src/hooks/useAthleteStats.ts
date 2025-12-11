@@ -11,9 +11,10 @@ import {
     calculateAthleteStats,
     filterSessionsByAthlete,
     filterCompletedSessions,
+    getWeeklyIntensityFatigue,
+    getAthleteIntensityFatigueSeries,
     type AthleteStats,
-} from '../utils/dashboardMetrics';
-import { getWeeklyIntensityFatigue, getAthleteIntensityFatigueSeries } from '../utils/metrics';
+} from '../core/analysis/metrics';
 import type { WorkoutSession } from '../types/types';
 
 // ============================================

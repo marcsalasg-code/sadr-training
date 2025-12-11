@@ -21,3 +21,14 @@ export {
     type SessionRowProps,
     type InfoRowProps,
 } from './AthleteSessionRow';
+
+// Section Components (extracted from AthleteDetail)
+export { AthleteHeader } from './AthleteHeader';
+export { AthleteQuickActions } from './AthleteQuickActions';
+export { AthletePlanSummary } from './AthletePlanSummary';
+export { AthletePhysicalData } from './AthletePhysicalData';
+export { AthleteStatsGrid } from './AthleteStatsGrid';
+export { AthleteChartsRow } from './AthleteChartsRow';
+export { AthleteInfoTab } from './AthleteInfoTab';
+export { AthleteSessionsTab } from './AthleteSessionsTab';
+export { AthleteEditModal } from './AthleteEditModal';

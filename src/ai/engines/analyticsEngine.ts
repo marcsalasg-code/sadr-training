@@ -50,7 +50,7 @@ export interface AnalyticsTrend {
  */
 function classifyMovementPattern(exercise: Exercise): MovementPattern['pattern'] {
     const name = exercise.name.toLowerCase();
-    const muscles = exercise.muscleGroups.map(m => m.toLowerCase());
+    const muscles = (exercise.muscleGroups || []).map(m => m.toLowerCase());
 
     // Push patterns
     if (name.includes('press') || name.includes('push') ||
