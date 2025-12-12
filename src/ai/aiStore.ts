@@ -84,9 +84,10 @@ const defaultSettings: AISettings = {
     isEnabled: true,
     provider: import.meta.env.VITE_OPENAI_API_KEY ? 'remote' : 'mock',
     mode: import.meta.env.VITE_OPENAI_API_KEY ? 'live' : 'mock',
-    apiUrl: import.meta.env.VITE_AI_API_URL || 'https://api.openai.com/v1/chat/completions',
+    // Gemini API endpoint (free tier)
+    apiUrl: import.meta.env.VITE_AI_API_URL || 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent',
     apiKey: import.meta.env.VITE_OPENAI_API_KEY || '',
-    model: import.meta.env.VITE_AI_MODEL || 'gpt-4o-mini',
+    model: import.meta.env.VITE_AI_MODEL || 'gemini-1.5-flash',
     autoSuggestions: true,
     showInlineHints: true,
     aggressiveness: 'balanced',

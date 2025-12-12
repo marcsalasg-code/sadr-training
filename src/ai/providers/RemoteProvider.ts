@@ -112,14 +112,46 @@ export class RemoteProvider implements IAIProvider {
             const systemPrompt = getSystemPrompt(request.type);
             const userPrompt = buildUserPrompt(request.prompt, request.context);
 
-            const response = await fetch(this.config!.apiUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${this.config!.apiKey}`,
-                    ...this.config!.headers,
-                },
-                body: JSON.stringify({
+            // Detect API type from URL
+            const isGemini = this.config!.apiUrl.includes('generativelanguage.googleapis.com') ||
+                this.config!.apiUrl.includes('gemini');
+
+            // Build headers based on API type
+            const headers: Record<string, string> = {
+                'Content-Type': 'application/json',
+                ...this.config!.headers,
+            };
+
+            if (isGemini) {
+                // Gemini uses x-goog-api-key header
+                headers['x-goog-api-key'] = this.config!.apiKey;
+            } else {
+                // OpenAI and compatible use Bearer token
+                headers['Authorization'] = `Bearer ${this.config!.apiKey}`;
+            }
+
+            // Build request body based on API type
+            let body: string;
+
+            if (isGemini) {
+                // Gemini native format
+                body = JSON.stringify({
+                    contents: [
+                        {
+                            parts: [
+                                { text: `${systemPrompt}\n\n${userPrompt}` }
+                            ]
+                        }
+                    ],
+                    generationConfig: {
+                        temperature: request.options?.temperature ?? 0.7,
+                        maxOutputTokens: request.options?.maxTokens ?? 2000,
+                        responseMimeType: 'application/json',
+                    },
+                });
+            } else {
+                // OpenAI format
+                body = JSON.stringify({
                     model: this.config!.model || 'gpt-4o-mini',
                     messages: [
                         { role: 'system', content: systemPrompt },
@@ -128,7 +160,13 @@ export class RemoteProvider implements IAIProvider {
                     temperature: request.options?.temperature ?? 0.7,
                     max_tokens: request.options?.maxTokens ?? 2000,
                     response_format: { type: 'json_object' },
-                }),
+                });
+            }
+
+            const response = await fetch(this.config!.apiUrl, {
+                method: 'POST',
+                headers,
+                body,
                 signal: controller.signal,
             });
 
@@ -140,7 +178,23 @@ export class RemoteProvider implements IAIProvider {
             }
 
             const result = await response.json();
-            const content = result.choices?.[0]?.message?.content;
+
+            // Parse response based on API type
+            let content: string | undefined;
+            let promptTokens = 0;
+            let completionTokens = 0;
+
+            if (isGemini) {
+                // Gemini format: candidates[0].content.parts[0].text
+                content = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                promptTokens = result.usageMetadata?.promptTokenCount ?? 0;
+                completionTokens = result.usageMetadata?.candidatesTokenCount ?? 0;
+            } else {
+                // OpenAI format: choices[0].message.content
+                content = result.choices?.[0]?.message?.content;
+                promptTokens = result.usage?.prompt_tokens ?? 0;
+                completionTokens = result.usage?.completion_tokens ?? 0;
+            }
 
             if (!content) {
                 throw new Error('Empty response from API');
@@ -152,8 +206,8 @@ export class RemoteProvider implements IAIProvider {
                 success: true,
                 data: parsedData,
                 usage: {
-                    promptTokens: result.usage?.prompt_tokens ?? 0,
-                    completionTokens: result.usage?.completion_tokens ?? 0,
+                    promptTokens,
+                    completionTokens,
                 },
                 cached: false,
             };
