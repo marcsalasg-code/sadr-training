@@ -147,6 +147,9 @@ export type ExerciseCategory =
 // 1RM ANCHOR CONFIG (unique here)
 // ============================================
 
+import type { Exercise, BodyRegion, MuscleGroup } from '../domain/exercises/types';
+import type { DifficultyLevel } from '../domain/plans/types';
+
 export interface OneRMAnchorConfig {
     anchorExerciseIds: string[];
     referenceMap: Record<string, string[]>;
@@ -156,8 +159,6 @@ export interface OneRMAnchorConfig {
 // ============================================
 // TEMPLATE EXERCISE (extended version)
 // ============================================
-
-import type { Exercise } from '../domain/exercises/types';
 
 export interface TemplateExercise {
     id: string;

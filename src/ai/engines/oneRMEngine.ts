@@ -231,12 +231,12 @@ export function analyzeSessionForOneRM(
         const record = oneRMRecords[exerciseEntry.exerciseId];
         const recommendation = analyzeOneRMProgression({
             exerciseId: exerciseEntry.exerciseId,
-            exerciseName: exerciseEntry.exercise?.name,
+            exerciseName: exerciseEntry.exerciseName,
             currentRecord: record,
             recentSets: exerciseEntry.sets,
             strengthFocusSessions: record?.strengthFocusSessions || 0,
             athleteWeightKg,
-            isBodyweight: exerciseEntry.exercise?.isBodyweight,
+            isBodyweight: false, // ExerciseEntry doesn't carry isBodyweight
         });
 
         // Only include if there's a meaningful recommendation

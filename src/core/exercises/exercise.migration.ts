@@ -18,14 +18,15 @@ import { inferPatternFromName, inferMuscleGroupFromName } from './exercise.model
 // ============================================
 
 /**
- * Extended exercise with new fields
+ * Extended exercise with required fields after migration
+ * Uses Omit to avoid conflicts with optional base fields
  */
-export interface MigratedExercise extends Exercise {
+export type MigratedExercise = Omit<Exercise, 'pattern' | 'muscleGroup' | 'tags' | 'updatedAt'> & {
     pattern: MovementPattern;
     muscleGroup: MuscleGroup;
     tags: string[];
     updatedAt: string;
-}
+};
 
 // ============================================
 // MIGRATION FUNCTIONS

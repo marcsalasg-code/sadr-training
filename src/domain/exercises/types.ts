@@ -17,6 +17,7 @@ export type MovementPattern =
     | 'lunge'
     | 'carry'
     | 'rotation'
+    | 'core'
     | 'other';
 
 export type MuscleGroup =
@@ -27,13 +28,22 @@ export type MuscleGroup =
     | 'legs'
     | 'core'
     | 'full'
-    | 'other';
+    | 'other'
+    // Legacy values for backward compatibility
+    | 'quads'
+    | 'hamstrings'
+    | 'glutes'
+    | 'calves'
+    | 'biceps'
+    | 'triceps'
+    | 'forearms';
 
 export type BodyRegion = 'upper' | 'lower' | 'full' | 'core';
 
 export interface Exercise {
     id: string;
     name: string;
+    description?: string;
     pattern?: MovementPattern;
     muscleGroup?: MuscleGroup;
     bodyRegion?: BodyRegion;
@@ -43,6 +53,7 @@ export interface Exercise {
     tags?: string[];
     isCustom?: boolean;
     isPrimaryOneRM?: boolean;
+    isBodyweight?: boolean;
     oneRMGroupId?: string;
     notes?: string;
     createdAt?: string;
@@ -149,6 +160,7 @@ export function groupExercisesByPattern(
         lunge: [],
         carry: [],
         rotation: [],
+        core: [],
         other: [],
     };
 
@@ -176,10 +188,11 @@ export function getExerciseDisplayInfo(exercise: Exercise): {
         lunge: 'Zancada',
         carry: 'Acarreo',
         rotation: 'Rotación',
+        core: 'Core',
         other: 'Otro',
     };
 
-    const muscleGroupLabels: Record<MuscleGroup, string> = {
+    const muscleGroupLabels: Partial<Record<MuscleGroup, string>> = {
         chest: 'Pecho',
         back: 'Espalda',
         shoulders: 'Hombros',
@@ -188,11 +201,18 @@ export function getExerciseDisplayInfo(exercise: Exercise): {
         core: 'Core',
         full: 'Cuerpo Completo',
         other: 'Otro',
+        quads: 'Cuádriceps',
+        hamstrings: 'Isquiotibiales',
+        glutes: 'Glúteos',
+        calves: 'Pantorrillas',
+        biceps: 'Bíceps',
+        triceps: 'Tríceps',
+        forearms: 'Antebrazos',
     };
 
     return {
         patternLabel: patternLabels[exercise.pattern || 'other'],
-        muscleGroupLabel: muscleGroupLabels[exercise.muscleGroup || 'other'],
+        muscleGroupLabel: muscleGroupLabels[exercise.muscleGroup || 'other'] || 'Otro',
         tags: exercise.tags || [],
     };
 }

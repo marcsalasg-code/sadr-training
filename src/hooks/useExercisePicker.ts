@@ -42,8 +42,8 @@ export interface UseExercisePickerReturn {
     exercises: Exercise[];
     filteredExercises: Exercise[];
     selectedExercise: Exercise | undefined;
-    enabledPatterns: Array<{ id: MovementPattern; label: string; icon: string; enabled: boolean; order: number }>;
-    enabledMuscleGroups: Array<{ id: MuscleGroup; label: string; icon: string; enabled: boolean; order: number }>;
+    enabledPatterns: Array<{ id: MovementPattern; label: string; icon?: string; enabled: boolean; order: number }>;
+    enabledMuscleGroups: Array<{ id: MuscleGroup; label: string; icon?: string; enabled: boolean; order: number }>;
 
     // Actions
     handleSelect: (exerciseId: string, onSelect: (id: string) => void) => void;

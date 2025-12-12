@@ -268,8 +268,8 @@ export function reorderBlocks(structure: SessionStructure, fromIndex: number, to
 }
 
 /**
- * Calculate total estimated duration
+ * Calculate total estimated duration from structure blocks
  */
-export function calculateTotalDuration(structure: SessionStructure): number {
+export function calculateStructureDuration(structure: SessionStructure): number {
     return structure.blocks.reduce((sum, b) => sum + (b.estimatedDuration || 0), 0);
 }

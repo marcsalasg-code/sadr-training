@@ -49,8 +49,8 @@ function calculateSessionStats(session: WorkoutSession) {
                 const reps = set.actualReps || set.targetReps || 0;
                 totalVolume += weight * reps;
 
-                if (set.actualRPE) {
-                    totalRPE += set.actualRPE;
+                if (set.rpe) {
+                    totalRPE += set.rpe;
                     rpeCount++;
                 }
             }
@@ -92,27 +92,30 @@ export function SessionCompletedSummary({
     const stats = calculateSessionStats(session);
 
     // Find best set (highest volume single set)
-    let bestSet: { exerciseName: string; weight: number; reps: number } | null = null;
-    let maxSetVolume = 0;
-
-    session.exercises.forEach(ex => {
-        const exercise = exercisesMap.get(ex.exerciseId);
-        ex.sets.forEach(set => {
-            if (set.isCompleted) {
-                const weight = set.actualWeight || 0;
-                const reps = set.actualReps || 0;
-                const volume = weight * reps;
-                if (volume > maxSetVolume) {
-                    maxSetVolume = volume;
-                    bestSet = {
-                        exerciseName: exercise?.name || 'Unknown',
-                        weight,
-                        reps,
-                    };
+    type BestSetInfo = { exerciseName: string; weight: number; reps: number };
+    const bestSetResult = session.exercises.reduce<{ best: BestSetInfo | null; maxVolume: number }>(
+        (acc, ex) => {
+            const exercise = exercisesMap.get(ex.exerciseId);
+            ex.sets.forEach(set => {
+                if (set.isCompleted) {
+                    const weight = set.actualWeight || 0;
+                    const reps = set.actualReps || 0;
+                    const volume = weight * reps;
+                    if (volume > acc.maxVolume) {
+                        acc.maxVolume = volume;
+                        acc.best = {
+                            exerciseName: exercise?.name || 'Unknown',
+                            weight,
+                            reps,
+                        };
+                    }
                 }
-            }
-        });
-    });
+            });
+            return acc;
+        },
+        { best: null, maxVolume: 0 }
+    );
+    const bestSet = bestSetResult.best;
 
     return (
         <div className="p-8 space-y-6 max-w-4xl mx-auto">
@@ -200,8 +203,8 @@ export function SessionCompletedSummary({
                             <div
                                 key={ex.id}
                                 className={`flex items-center justify-between p-3 rounded-lg border ${isComplete
-                                        ? 'bg-green-500/5 border-green-500/20'
-                                        : 'bg-[#141414] border-[#2A2A2A]'
+                                    ? 'bg-green-500/5 border-green-500/20'
+                                    : 'bg-[#141414] border-[#2A2A2A]'
                                     }`}
                             >
                                 <div className="flex items-center gap-3">

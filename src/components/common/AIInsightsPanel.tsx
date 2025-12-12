@@ -31,7 +31,7 @@ interface AIInsightsPanelProps {
 function computeAdherence(
     sessions: WorkoutSession[],
     plan?: TrainingPlan
-): { planned: number; completed: number; percentage: number; volumeTarget: number; volumeActual: number; volumeDeviation: number; weeklyScore?: number } {
+): { planned: number; completed: number; percentage: number; volumeTarget: number; volumeActual: number; volumeDeviation: number; weeklyScore: number } {
     const now = new Date();
     const weekStart = new Date(now);
     weekStart.setDate(now.getDate() - now.getDay());

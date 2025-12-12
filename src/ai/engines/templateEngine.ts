@@ -92,7 +92,7 @@ function findExercisesForMuscleGroup(
     avoidIds: Set<UUID>
 ): Exercise[] {
     return catalog.filter(ex =>
-        ex.muscleGroups.includes(muscleGroup) &&
+        (ex.muscleGroups || []).includes(muscleGroup) &&
         !avoidIds.has(ex.id)
     );
 }

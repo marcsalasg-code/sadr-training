@@ -74,7 +74,7 @@ export function mapGeneratedToSession(
             exerciseEntries.push({
                 id: crypto.randomUUID(),
                 exerciseId: ej.id,
-                exercise,
+                exerciseName: exercise.name,
                 sets,
                 notes: ej.notas,
                 order: globalOrder++,

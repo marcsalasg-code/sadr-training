@@ -92,7 +92,7 @@ function filterExercisesByType(
     }
 
     return catalog.filter(ex =>
-        ex.muscleGroups.some(mg =>
+        (ex.muscleGroups || []).some(mg =>
             targetMuscles.some(tm => mg.toLowerCase().includes(tm))
         )
     );

@@ -5,9 +5,10 @@
  */
 
 import type { UUID } from '../shared';
+import type { BlockType } from '../sessions/types';
 
-// Re-export UUID for backward compatibility
-export type { UUID };
+// Re-export for backward compatibility
+export type { UUID, BlockType };
 
 // ============================================
 // WEEK DAY & SESSION TYPES
@@ -40,11 +41,7 @@ export type SessionType =
 
 export type DayIntensity = 'light' | 'moderate' | 'heavy';
 
-export type BlockType =
-    | 'movilidad_calentamiento'
-    | 'fuerza'
-    | 'tecnica_especifica'
-    | 'emom_hiit';
+// BlockType is imported from sessions/types and re-exported above
 
 export type DifficultyLevel = 'beginner' | 'intermediate' | 'advanced';
 
@@ -141,17 +138,11 @@ export interface TrainingPlan {
 
 // ============================================
 // ADHERENCE
+// NOTE: WeeklyAdherence is defined in adherence.ts
 // ============================================
 
-export interface WeeklyAdherence {
-    planned: number;
-    completed: number;
-    percentage: number;
-    volumeTarget: number;
-    volumeActual: number;
-    volumeDeviation: number;
-    weeklyScore?: number;
-}
+// Re-export from adherence.ts for convenience
+export type { WeeklyAdherence } from './adherence';
 
 export interface PlanAdherence {
     plannedSessions: number;

@@ -220,7 +220,7 @@ function ExerciseCard({ exercise, getMuscleGroupLabel, getPatternLabel, onEdit, 
                     <AuraBadge size="sm" variant="muted">{getMuscleGroupLabel(exercise.muscleGroup)}</AuraBadge>
                 )}
                 {exercise.pattern && (
-                    <AuraBadge size="sm" variant="info">{getPatternLabel(exercise.pattern)}</AuraBadge>
+                    <AuraBadge size="sm" variant="muted">{getPatternLabel(exercise.pattern)}</AuraBadge>
                 )}
             </div>
 
