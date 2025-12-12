@@ -13,6 +13,8 @@ import {
     AuraBadge,
 } from '../components/ui/aura';
 import { useSettings, useTrainingStore } from '../store/store';
+import { AIEnginePanel, SystemStatsPanel, FeedbackPanel, SimulatorPanel, CategoryManager } from '../components/lab';
+import { OneRMAnchorManager } from '../components/common/OneRMAnchorManager';
 import type { MovementPattern, MuscleGroup } from '../core/exercises/exercise.model';
 
 export function SettingsView() {
@@ -25,7 +27,8 @@ export function SettingsView() {
     const [pendingImportFile, setPendingImportFile] = useState<File | null>(null);
     const [importError, setImportError] = useState<string | null>(null);
     const [importSuccess, setImportSuccess] = useState<string | null>(null);
-    const [activeTab, setActiveTab] = useState<'training' | 'categories' | 'interface' | 'data'>('training');
+    const [activeTab, setActiveTab] = useState<'training' | 'categories' | 'interface' | 'data' | 'advanced'>('training');
+    const [advancedSubTab, setAdvancedSubTab] = useState<'ai' | 'anchors' | 'categories' | 'feedback' | 'simulator' | 'system'>('ai');
 
     // TrainingConfig
     const trainingConfig = useTrainingStore((s) => s.trainingConfig);
@@ -91,6 +94,16 @@ export function SettingsView() {
         { id: 'categories', label: 'Categorías', icon: '🏷️' },
         { id: 'interface', label: 'Interface', icon: '🎨' },
         { id: 'data', label: 'Data', icon: '💾' },
+        { id: 'advanced', label: 'Avanzado', icon: '🔬' },
+    ] as const;
+
+    const advancedTabs = [
+        { id: 'ai', label: 'AI Engine', icon: '🤖' },
+        { id: 'anchors', label: '1RM Anchors', icon: '🏋️' },
+        { id: 'categories', label: 'Categories', icon: '📁' },
+        { id: 'feedback', label: 'Feedback', icon: '📝' },
+        { id: 'simulator', label: 'Simulator', icon: '🎲' },
+        { id: 'system', label: 'System', icon: '🔧' },
     ] as const;
 
     return (
@@ -425,6 +438,41 @@ export function SettingsView() {
                             </AuraButton>
                         </div>
                     </AuraPanel>
+                </div>
+            )}
+
+            {/* Advanced Tab (Lab) */}
+            {activeTab === 'advanced' && (
+                <div className="space-y-6">
+                    <AuraPanel header={<span className="text-white font-medium">🔬 Development Console</span>}>
+                        <p className="text-sm text-gray-500 mb-4">
+                            Advanced tools for development and debugging.
+                        </p>
+
+                        {/* Sub-tabs */}
+                        <div className="flex gap-2 flex-wrap mb-4">
+                            {advancedTabs.map(tab => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setAdvancedSubTab(tab.id)}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${advancedSubTab === tab.id
+                                            ? 'bg-purple-600 text-white'
+                                            : 'bg-[#1A1A1A] text-gray-400 hover:bg-[#222]'
+                                        }`}
+                                >
+                                    {tab.icon} {tab.label}
+                                </button>
+                            ))}
+                        </div>
+                    </AuraPanel>
+
+                    {/* Advanced Tab Content */}
+                    {advancedSubTab === 'ai' && <AIEnginePanel />}
+                    {advancedSubTab === 'anchors' && <OneRMAnchorManager />}
+                    {advancedSubTab === 'categories' && <CategoryManager />}
+                    {advancedSubTab === 'feedback' && <FeedbackPanel />}
+                    {advancedSubTab === 'simulator' && <SimulatorPanel />}
+                    {advancedSubTab === 'system' && <SystemStatsPanel />}
                 </div>
             )}
 

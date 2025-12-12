@@ -18,6 +18,7 @@ import {
   ExercisesView,
   CalendarView,
   SettingsView,
+  PlanningView,
 } from './views';
 
 // Lazy load heavy views for better initial load performance
@@ -41,24 +42,23 @@ function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/athletes" element={<AthletesList />} />
           <Route path="/athletes/:id" element={<AthleteDetail />} />
-          <Route path="/sessions" element={<SessionBuilder />} />
+          {/* New unified planning view */}
+          <Route path="/planning" element={<PlanningView />} />
+          {/* Keep old routes for direct access and backward compatibility */}
+          <Route path="/sessions" element={<Navigate to="/planning?tab=sessions" replace />} />
           <Route path="/sessions/live/:id" element={<LiveSession />} />
-          <Route path="/templates" element={<TemplatesView />} />
-          <Route path="/exercises" element={<ExercisesView />} />
-          <Route path="/calendar" element={<CalendarView />} />
+          <Route path="/templates" element={<Navigate to="/planning?tab=templates" replace />} />
+          <Route path="/exercises" element={<Navigate to="/planning?tab=exercises" replace />} />
+          <Route path="/calendar" element={<Navigate to="/planning?tab=calendar" replace />} />
           <Route path="/analytics" element={
             <Suspense fallback={<LoadingFallback />}>
               <AnalyticsView />
             </Suspense>
           } />
-          {/* Redirect old training analytics path to unified view */}
           <Route path="/analytics/training" element={<Navigate to="/analytics?tab=training" replace />} />
           <Route path="/settings" element={<SettingsView />} />
-          <Route path="/lab" element={
-            <Suspense fallback={<LoadingFallback />}>
-              <InternalLab />
-            </Suspense>
-          } />
+          {/* Lab moved to settings, redirect for backward compatibility */}
+          <Route path="/lab" element={<Navigate to="/settings?tab=advanced" replace />} />
         </Routes>
       </AppShell>
     </BrowserRouter>

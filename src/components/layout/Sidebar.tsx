@@ -2,7 +2,7 @@
  * Sidebar - Navegación principal de la aplicación
  */
 
-import { NavLink } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 
 interface NavItem {
     path: string;
@@ -13,50 +13,71 @@ interface NavItem {
 const navItems: NavItem[] = [
     { path: '/', label: 'Dashboard', icon: '📊' },
     { path: '/athletes', label: 'Atletas', icon: '👥' },
-    { path: '/sessions', label: 'Sesiones', icon: '🏋️' },
-    { path: '/templates', label: 'Plantillas', icon: '📋' },
-    { path: '/exercises', label: 'Ejercicios', icon: '💪' },
-    { path: '/calendar', label: 'Calendario', icon: '📅' },
+    { path: '/planning', label: 'Planificación', icon: '📋' },
     { path: '/analytics', label: 'Análisis', icon: '📈' },
-    { path: '/lab', label: 'Lab', icon: '🔬' },
     { path: '/settings', label: 'Ajustes', icon: '⚙️' },
 ];
 
 export function Sidebar() {
+    const location = useLocation();
+
+    // Check if a nav item should be active
+    const isItemActive = (path: string): boolean => {
+        const pathname = location.pathname;
+
+        // Exact match for root
+        if (path === '/') {
+            return pathname === '/';
+        }
+
+        // Planning section includes /sessions routes (live session, etc.)
+        if (path === '/planning') {
+            return pathname.startsWith('/planning') || pathname.startsWith('/sessions');
+        }
+
+        // For other paths, check if pathname starts with the path
+        return pathname.startsWith(path);
+    };
+
     return (
-        <aside className="w-64 h-screen bg-[var(--color-bg-secondary)] border-r border-[var(--color-border-default)] flex flex-col fixed left-0 top-0">
+        <aside className="w-64 h-screen bg-[#0D0D0D] border-r border-[#2A2A2A] flex flex-col fixed left-0 top-0 z-50">
             {/* Logo */}
-            <div className="p-6 border-b border-[var(--color-border-default)]">
-                <h1 className="text-xl font-bold text-[var(--color-accent-beige)]">
+            <div className="p-6 border-b border-[#2A2A2A]">
+                <h1 className="text-xl font-bold text-[#C5A572]">
                     Training Monitor
                 </h1>
-                <p className="text-xs text-[var(--color-text-muted)] mt-1">
+                <p className="text-xs text-gray-500 mt-1">
                     Sistema de entrenamiento
                 </p>
             </div>
 
             {/* Navigation */}
             <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
-                {navItems.map((item) => (
-                    <NavLink
-                        key={item.path}
-                        to={item.path}
-                        className={({ isActive }) =>
-                            `flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 ${isActive
-                                ? 'bg-[var(--color-bg-elevated)] text-[var(--color-accent-gold)] border border-[var(--color-border-accent)]'
-                                : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-tertiary)] hover:text-[var(--color-text-primary)]'
-                            }`
-                        }
-                    >
-                        <span className="text-lg">{item.icon}</span>
-                        <span>{item.label}</span>
-                    </NavLink>
-                ))}
+                {navItems.map((item) => {
+                    const active = isItemActive(item.path);
+                    return (
+                        <Link
+                            key={item.path}
+                            to={item.path}
+                            className={`
+                                flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium
+                                transition-all duration-200
+                                ${active
+                                    ? 'bg-[#C5A572] text-black'
+                                    : 'text-gray-400 hover:bg-[#1A1A1A] hover:text-white'
+                                }
+                            `}
+                        >
+                            <span className="text-lg">{item.icon}</span>
+                            <span>{item.label}</span>
+                        </Link>
+                    );
+                })}
             </nav>
 
             {/* Footer */}
-            <div className="p-4 border-t border-[var(--color-border-default)]">
-                <div className="text-xs text-[var(--color-text-muted)]">
+            <div className="p-4 border-t border-[#2A2A2A]">
+                <div className="text-xs text-gray-500">
                     v1.0.0 • Dark Theme
                 </div>
             </div>

@@ -1,160 +1,157 @@
 /**
- * WeeklyScheduleWidget - Weekly coach hub for Dashboard
+ * WeeklyScheduleWidget - Premium Weekly Calendar for Dashboard
  * 
- * Shows the current week (Mon-Sun) with sessions for each day.
- * Allows quick navigation to calendar and starting sessions.
+ * Redesigned based on reference image with:
+ * - Larger day cells with session badges
+ * - Gold accent on today
+ * - Session name visible directly on calendar
+ * - Click to start session directly
  */
 
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
     AuraPanel,
     AuraButton,
     AuraBadge,
-    AuraCard,
 } from '../ui/aura';
 import { useWeeklySchedule } from '../../hooks/useWeeklySchedule';
 import type { WeekDay, SessionSummary } from '../../hooks/useWeeklySchedule';
 
 // ============================================
-// SUB-COMPONENTS
+// SESSION BADGE COMPONENT
 // ============================================
 
-interface DayCardProps {
+interface SessionBadgeProps {
+    session: SessionSummary;
+    onClick: () => void;
+}
+
+function SessionBadge({ session, onClick }: SessionBadgeProps) {
+    const statusColors = {
+        planned: 'bg-[#C5A572]/20 border-[#C5A572] text-[#C5A572] hover:bg-[#C5A572]/30',
+        in_progress: 'bg-[#C5A572] border-[#C5A572] text-black animate-pulse',
+        completed: 'bg-green-900/30 border-green-600/50 text-green-400',
+        cancelled: 'bg-red-900/20 border-red-500/30 text-red-400/60',
+    };
+
+    return (
+        <button
+            onClick={(e) => { e.stopPropagation(); onClick(); }}
+            className={`
+                w-full px-2 py-1.5 rounded text-left text-[11px] font-medium
+                border transition-all duration-200 truncate
+                ${statusColors[session.status] || statusColors.planned}
+            `}
+            title={`${session.name} - ${session.athleteName}`}
+        >
+            {session.name}
+        </button>
+    );
+}
+
+// ============================================
+// DAY CELL COMPONENT
+// ============================================
+
+interface DayCellProps {
     day: WeekDay;
-    isExpanded: boolean;
-    onExpand: () => void;
     onStartSession: (sessionId: string) => void;
     onCreateSession: (date: string) => void;
 }
 
-function DayCard({ day, isExpanded, onExpand, onStartSession, onCreateSession }: DayCardProps) {
-    const hasScheduled = day.sessions.some(s => s.status === 'planned');
+function DayCell({ day, onStartSession, onCreateSession }: DayCellProps) {
+    const navigate = useNavigate();
     const hasInProgress = day.sessions.some(s => s.status === 'in_progress');
-    const hasCompleted = day.sessions.some(s => s.status === 'completed');
 
-    // Status indicator color
-    const getStatusColor = () => {
-        if (hasInProgress) return 'bg-[var(--color-accent-gold)]';
-        if (hasScheduled) return 'bg-blue-500';
-        if (hasCompleted) return 'bg-green-500';
-        if (day.isTrainingDay && !day.isPast) return 'bg-gray-600';
-        return 'bg-transparent';
+    const handleSessionClick = (session: SessionSummary) => {
+        if (session.status === 'planned') {
+            onStartSession(session.id);
+        } else {
+            navigate(`/sessions/live/${session.id}`);
+        }
     };
 
     return (
-        <div className="flex flex-col">
-            {/* Day Card */}
-            <button
-                onClick={onExpand}
-                className={`
-                    relative flex flex-col items-center p-3 rounded-lg border transition-all
-                    ${day.isToday
-                        ? 'bg-[var(--color-accent-gold)]/10 border-[var(--color-accent-gold)] ring-1 ring-[var(--color-accent-gold)]/30'
-                        : 'bg-[#141414] border-[#2A2A2A] hover:border-[#444]'
-                    }
-                    ${day.isPast && !day.isToday ? 'opacity-60' : ''}
-                    ${isExpanded ? 'ring-2 ring-[var(--color-accent-gold)]/50' : ''}
-                `}
-            >
-                {/* Day name */}
-                <span className={`text-[10px] uppercase tracking-wider ${day.isToday ? 'text-[var(--color-accent-gold)]' : 'text-gray-500'}`}>
-                    {day.dayName}
-                </span>
-
-                {/* Day number */}
-                <span className={`text-lg font-mono ${day.isToday ? 'text-white font-bold' : 'text-gray-300'}`}>
-                    {day.dayNumber}
-                </span>
-
-                {/* Session count / status */}
-                {day.sessions.length > 0 ? (
-                    <div className="flex items-center gap-1 mt-1">
-                        <div className={`w-2 h-2 rounded-full ${getStatusColor()}`} />
-                        <span className="text-[10px] text-gray-400">{day.sessions.length}</span>
-                    </div>
-                ) : day.isTrainingDay && !day.isPast ? (
-                    <div className="mt-1">
-                        <span className="text-[10px] text-gray-500">📅</span>
-                    </div>
-                ) : (
-                    <div className="mt-1 h-4" /> // Spacer for alignment
-                )}
-            </button>
-
-            {/* Expanded sessions */}
-            {isExpanded && (
-                <div className="mt-2 p-2 bg-[#1A1A1A] rounded-lg border border-[#2A2A2A] space-y-2 min-w-[200px]">
-                    {day.sessions.length > 0 ? (
-                        day.sessions.map(session => (
-                            <SessionRow
-                                key={session.id}
-                                session={session}
-                                onStart={() => onStartSession(session.id)}
-                            />
-                        ))
-                    ) : (
-                        <div className="text-center py-2">
-                            <p className="text-xs text-gray-500 mb-2">No sessions</p>
-                            {!day.isPast && (
-                                <AuraButton
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => onCreateSession(day.date)}
-                                >
-                                    + Add Session
-                                </AuraButton>
-                            )}
-                        </div>
-                    )}
-                    {day.sessions.length > 0 && !day.isPast && (
-                        <AuraButton
-                            variant="ghost"
-                            size="sm"
-                            fullWidth
-                            onClick={() => onCreateSession(day.date)}
-                        >
-                            + Add Another
-                        </AuraButton>
+        <div
+            className={`
+                relative flex flex-col min-h-[140px] p-3 rounded-xl border transition-all
+                ${day.isToday
+                    ? 'bg-gradient-to-b from-[#C5A572]/10 to-[#0A0A0A] border-[#C5A572] shadow-lg shadow-[#C5A572]/10'
+                    : 'bg-[#141414] border-[#2A2A2A] hover:border-[#444] hover:bg-[#1A1A1A]'
+                }
+                ${day.isPast && !day.isToday ? 'opacity-50' : ''}
+            `}
+        >
+            {/* Day Header */}
+            <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                    <span className={`
+                        text-xs uppercase tracking-wider font-medium
+                        ${day.isToday ? 'text-[#C5A572]' : 'text-gray-500'}
+                    `}>
+                        {day.dayName}
+                    </span>
+                    {day.isToday && (
+                        <span className="px-1.5 py-0.5 text-[9px] rounded bg-[#C5A572] text-black font-bold">
+                            TODAY
+                        </span>
                     )}
                 </div>
-            )}
-        </div>
-    );
-}
-
-interface SessionRowProps {
-    session: SessionSummary;
-    onStart: () => void;
-}
-
-function SessionRow({ session, onStart }: SessionRowProps) {
-    const statusConfig = {
-        planned: { label: 'Planned', variant: 'default' as const, action: 'Start' },
-        in_progress: { label: 'In Progress', variant: 'gold' as const, action: 'Continue' },
-        completed: { label: 'Done', variant: 'success' as const, action: 'View' },
-        cancelled: { label: 'Cancelled', variant: 'error' as const, action: 'View' },
-    };
-
-    const config = statusConfig[session.status] || statusConfig.planned;
-
-    return (
-        <div className="flex items-center justify-between gap-2 p-2 bg-[#0D0D0D] rounded">
-            <div className="flex-1 min-w-0">
-                <p className="text-sm text-white truncate">{session.name}</p>
-                <p className="text-[10px] text-gray-500 truncate">{session.athleteName}</p>
+                <span className={`
+                    text-2xl font-light font-mono
+                    ${day.isToday ? 'text-white' : 'text-gray-400'}
+                `}>
+                    {day.dayNumber}
+                </span>
             </div>
-            <div className="flex items-center gap-2">
-                <AuraBadge variant={config.variant} size="sm">
-                    {config.label}
-                </AuraBadge>
-                <AuraButton
-                    variant={session.status === 'in_progress' ? 'gold' : 'secondary'}
-                    size="sm"
-                    onClick={onStart}
+
+            {/* Sessions List */}
+            <div className="flex-1 space-y-1.5">
+                {day.sessions.slice(0, 3).map(session => (
+                    <SessionBadge
+                        key={session.id}
+                        session={session}
+                        onClick={() => handleSessionClick(session)}
+                    />
+                ))}
+
+                {day.sessions.length > 3 && (
+                    <span className="text-[10px] text-gray-500 pl-1">
+                        +{day.sessions.length - 3} more
+                    </span>
+                )}
+            </div>
+
+            {/* Add Session Button (for empty days) */}
+            {day.sessions.length === 0 && !day.isPast && (
+                <button
+                    onClick={() => onCreateSession(day.date)}
+                    className="mt-auto py-2 text-xs text-gray-500 hover:text-[#C5A572] transition-colors flex items-center justify-center gap-1"
                 >
-                    {config.action}
-                </AuraButton>
-            </div>
+                    <span className="text-lg leading-none">+</span>
+                    <span>Add</span>
+                </button>
+            )}
+
+            {/* Add more for days with sessions */}
+            {day.sessions.length > 0 && !day.isPast && (
+                <button
+                    onClick={() => onCreateSession(day.date)}
+                    className="absolute bottom-2 right-2 w-6 h-6 rounded-full bg-[#222] hover:bg-[#333] flex items-center justify-center text-gray-500 hover:text-[#C5A572] transition-all text-sm"
+                    title="Add session"
+                >
+                    +
+                </button>
+            )}
+
+            {/* In Progress Indicator */}
+            {hasInProgress && (
+                <div className="absolute top-2 right-2">
+                    <div className="w-2 h-2 rounded-full bg-[#C5A572] animate-ping" />
+                    <div className="absolute top-0 w-2 h-2 rounded-full bg-[#C5A572]" />
+                </div>
+            )}
         </div>
     );
 }
@@ -164,6 +161,7 @@ function SessionRow({ session, onStart }: SessionRowProps) {
 // ============================================
 
 export function WeeklyScheduleWidget() {
+    const navigate = useNavigate();
     const {
         weekDays,
         currentWeekLabel,
@@ -171,8 +169,6 @@ export function WeeklyScheduleWidget() {
         createSessionForDate,
         startSession,
     } = useWeeklySchedule();
-
-    const [expandedDay, setExpandedDay] = useState<string | null>(null);
 
     // Stats
     const totalSessions = weekDays.reduce((sum, d) => sum + d.sessions.length, 0);
@@ -184,64 +180,71 @@ export function WeeklyScheduleWidget() {
         (sum, d) => sum + d.sessions.filter(s => s.status === 'in_progress').length,
         0
     );
-
-    const handleDayClick = (date: string) => {
-        setExpandedDay(prev => prev === date ? null : date);
-    };
+    const plannedSessions = weekDays.reduce(
+        (sum, d) => sum + d.sessions.filter(s => s.status === 'planned').length,
+        0
+    );
 
     return (
-        <AuraPanel
-            header={
-                <div className="flex items-center justify-between w-full">
-                    <div className="flex items-center gap-3">
-                        <span className="text-white text-sm font-medium">📆 This Week</span>
-                        <span className="text-xs text-gray-500 font-mono">{currentWeekLabel}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
+        <div className="space-y-4">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                    <h2 className="text-xl font-medium text-white">Calendar</h2>
+                    <span className="text-sm text-gray-500 font-mono">{currentWeekLabel}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                    {/* Stats Pills */}
+                    <div className="flex items-center gap-2 text-xs">
                         {inProgressSessions > 0 && (
-                            <AuraBadge variant="gold">
-                                {inProgressSessions} in progress
-                            </AuraBadge>
+                            <span className="px-2 py-1 rounded-full bg-[#C5A572]/20 text-[#C5A572] font-medium">
+                                {inProgressSessions} live
+                            </span>
                         )}
-                        <span className="text-xs text-gray-400">
+                        {plannedSessions > 0 && (
+                            <span className="px-2 py-1 rounded-full bg-blue-900/30 text-blue-400">
+                                {plannedSessions} planned
+                            </span>
+                        )}
+                        <span className="px-2 py-1 rounded-full bg-[#1A1A1A] text-gray-400">
                             {completedSessions}/{totalSessions} done
                         </span>
-                        <AuraButton variant="ghost" size="sm" onClick={gotoFullCalendar}>
-                            View Calendar →
-                        </AuraButton>
                     </div>
+                    <AuraButton
+                        variant="secondary"
+                        size="sm"
+                        onClick={gotoFullCalendar}
+                    >
+                        Full Calendar →
+                    </AuraButton>
                 </div>
-            }
-        >
-            {/* Week Grid */}
-            <div className="flex gap-2 overflow-x-auto pb-2">
+            </div>
+
+            {/* Week Grid - Full Width */}
+            <div className="grid grid-cols-7 gap-3">
                 {weekDays.map(day => (
-                    <DayCard
+                    <DayCell
                         key={day.date}
                         day={day}
-                        isExpanded={expandedDay === day.date}
-                        onExpand={() => handleDayClick(day.date)}
                         onStartSession={startSession}
                         onCreateSession={createSessionForDate}
                     />
                 ))}
             </div>
 
-            {/* Quick tip when no sessions */}
+            {/* Empty State */}
             {totalSessions === 0 && (
-                <div className="mt-4 pt-4 border-t border-[#222] text-center">
-                    <p className="text-xs text-gray-500">
-                        No sessions scheduled this week.{' '}
-                        <button
-                            onClick={() => createSessionForDate(weekDays.find(d => d.isToday)?.date || weekDays[0].date)}
-                            className="text-[var(--color-accent-gold)] hover:underline"
-                        >
-                            Create one now →
-                        </button>
-                    </p>
+                <div className="text-center py-8 border border-dashed border-[#2A2A2A] rounded-xl">
+                    <p className="text-gray-500 mb-3">No sessions scheduled this week</p>
+                    <AuraButton
+                        variant="secondary"
+                        onClick={() => navigate('/planning?tab=sessions')}
+                    >
+                        + Schedule Sessions
+                    </AuraButton>
                 </div>
             )}
-        </AuraPanel>
+        </div>
     );
 }
 

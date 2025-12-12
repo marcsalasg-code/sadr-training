@@ -9,3 +9,4 @@ export { CalendarView } from './CalendarView';
 export { AnalyticsView } from './AnalyticsView';
 export { SettingsView } from './SettingsView';
 export { InternalLab } from './InternalLab';
+export { PlanningView } from './PlanningView';
