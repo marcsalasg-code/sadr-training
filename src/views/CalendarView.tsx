@@ -6,6 +6,7 @@
  * REFACTORED: Usa useCalendarView hook para toda la lógica de negocio (Phase 5)
  */
 
+import { useNavigate } from 'react-router-dom';
 import { Modal, Input, Select } from '../components/ui';
 import {
     AuraSection,
@@ -21,62 +22,64 @@ import { useCalendarView } from '../hooks';
 import { getDayPlanFor } from '../utils';
 
 export function CalendarView() {
+
+    const navigate = useNavigate();
     const {
-        // Navigation
-        year,
-        month,
-        prevMonth,
-        nextMonth,
-        monthNames,
-        weekDays,
+    // Navigation
+    year,
+    month,
+    prevMonth,
+    nextMonth,
+    monthNames,
+    weekDays,
 
-        // Calendar data
-        calendarDays,
-        sessionsByDate,
+    // Calendar data
+    calendarDays,
+    sessionsByDate,
 
-        // Filtering
-        selectedAthleteId,
-        setSelectedAthleteId,
-        athleteOptions,
-        athleteOptionsForCreate,
-        templateOptions,
+    // Filtering
+    selectedAthleteId,
+    setSelectedAthleteId,
+    athleteOptions,
+    athleteOptionsForCreate,
+    templateOptions,
 
-        // Day expansion
-        expandedDate,
-        setExpandedDate,
-        handleDayClick,
+    // Day expansion
+    expandedDate,
+    setExpandedDate,
+    handleDayClick,
 
-        // Modal state
-        selectedDate,
-        showCreateForm,
-        newSessionName,
-        newSessionAthleteId,
-        newSessionTemplateId,
-        setNewSessionName,
-        setNewSessionAthleteId,
-        setNewSessionTemplateId,
+    // Modal state
+    selectedDate,
+    showCreateForm,
+    newSessionName,
+    newSessionAthleteId,
+    newSessionTemplateId,
+    setNewSessionName,
+    setNewSessionAthleteId,
+    setNewSessionTemplateId,
 
-        // Handlers
-        handleOpenCreateModal,
-        handleCloseModal,
-        handleCreateSession,
-        getSessionAction,
+    // Handlers
+    handleOpenCreateModal,
+    handleCloseModal,
+    handleCreateSession,
+    getSessionAction,
 
-        // Training plan context
-        activePlan,
-        weeklyAdherence,
-        isTrainingDayForDate,
-        getDayPlanForDate,
+    // Training plan context
+    activePlan,
+    weeklyAdherence,
+    isTrainingDayForDate,
+    getDayPlanForDate,
 
-        // Utilities
-        isToday,
-        formatDateKey,
-        formatModalDate,
-        selectedDaySessions,
-        sessionTypeIcons,
-        statusConfig,
-        getAthlete,
-    } = useCalendarView();
+    // Utilities
+    isToday,
+    formatDateKey,
+    formatModalDate,
+    selectedDaySessions,
+    sessionTypeIcons,
+    statusConfig,
+    getAthlete,
+} = useCalendarView();
 
     return (
         <div className="p-8 space-y-6 max-w-6xl mx-auto">
@@ -339,6 +342,15 @@ export function CalendarView() {
                                                     <AuraBadge variant={status.variant} size="sm">
                                                         {status.label}
                                                     </AuraBadge>
+                                                    {(session.status === 'planned' || session.status === 'reserved') && (
+                                                        <AuraButton
+                                                            size="sm"
+                                                            variant="secondary"
+                                                            onClick={() => navigate(`/planning?tab=sessions&sessionId=${session.id}&mode=edit`)}
+                                                        >
+                                                            ✏️ Editar
+                                                        </AuraButton>
+                                                    )}
                                                     <AuraButton size="sm" onClick={action.onClick}>
                                                         {action.label}
                                                     </AuraButton>
