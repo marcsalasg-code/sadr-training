@@ -131,15 +131,15 @@ Base: `https://github.com/marcsalasg-code/sadr-training/blob/00d155922172c0496d2
 
 ## 6) Diferencia entre Plan y Realidad
 
-> **IMPORTANTE**: Los siguientes componentes NO EXISTEN en este repositorio:
+> **IMPORTANTE**: Estado de componentes de scheduling (actualizado Phase 10):
 
-| Componente planeado | Estado | Equivalente actual |
-|---------------------|--------|--------------------|
-| `SessionsLibrary.tsx` | ❌ No existe | `SessionBuilder.tsx` |
-| `SlotPickerModal.tsx` | ❌ No existe | `DayAgendaPanel.tsx` |
-| `components/scheduling/` | ⚠️ Carpeta vacía | Lógica en `dashboard/` |
+| Componente planeado | Estado | Notas |
+|---------------------|--------|-------|
+| `SessionsLibrary.tsx` | ❌ No existe | `SessionBuilder.tsx` cumple este rol |
+| `SlotPickerModal.tsx` | ✅ **EXISTE** | `src/components/scheduling/SlotPickerModal.tsx` |
+| `components/scheduling/` | ✅ **POBLADO** | Contiene `SlotPickerModal.tsx` (Phase 10) |
 
-**Conclusión**: Cualquier fase futura que mencione estos componentes debe tratarse como **trabajo nuevo a implementar**, no como archivos perdidos a restaurar.
+**Conclusión Phase 10**: El scheduling loop está completo. `SlotPickerModal` se usa para crear sesiones reservadas y reprogramar.
 
 ---
 

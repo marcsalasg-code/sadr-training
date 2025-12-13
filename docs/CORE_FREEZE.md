@@ -91,6 +91,43 @@ AnalyticsView → Seleccionar atleta (opcional)
     └── Ver tendencias
 ```
 
+### Flujo 6: Scheduling Loop (Phase 10)
+```
+Dashboard/WeeklyScheduleWidget → Click día → DayAgendaPanel
+    └── Seleccionar atleta
+    └── Click "Reservar" → Crea sesión status='reserved'
+    └── Click "Crear sesión" → Crea sesión status='planned'
+    └── Navega a /planning?tab=sessions&sessionId=<id>&mode=edit
+
+SessionBuilder (mode=edit) → SessionEditor
+    └── Añadir ejercicios
+    └── Click "Guardar":
+        └── Si status='reserved' AND exercises.length > 0 → auto-promueve a 'planned'
+    └── Click "🗓 Reprogramar":
+        └── SlotPickerModal → Seleccionar nueva fecha/hora
+        └── Si slot ocupado → Warning + confirm
+        └── Actualiza scheduledDate
+    └── Click "Guardar e Iniciar" → Promueve a 'planned' + LiveSession
+
+CalendarView → Vista mensual
+    └── Sesiones reservadas: punto púrpura + borde discontinuo púrpura
+    └── Click día → Modal con lista de sesiones
+        └── Sesiones planned/reserved: botón "✏️ Editar"
+        └── Click "Editar" → /planning?tab=sessions&sessionId=<id>&mode=edit
+```
+
+### Session Status Values
+
+| Status | Label (UI) | Styling | Descripción |
+|--------|-----------|---------|-------------|
+| `reserved` | Reservada | Púrpura (#8B5CF6), borde discontinuo | Slot reservado sin ejercicios |
+| `planned` | Planificada | Dorado/Default | Sesión lista para iniciar |
+| `in_progress` | En curso | Dorado + animate-pulse | Sesión activa |
+| `completed` | Completada | Verde (#22C55E) | Sesión finalizada |
+| `cancelled` | Cancelada | Rojo (#EF4444) | Sesión cancelada |
+
+> **Regla anti-loop Plan vs Reality**: Si planes futuros mencionan componentes que no existen en el repo, tratarlos como TRABAJO NUEVO, no como restauración.
+
 ---
 
 ## 💾 Persistencia Actual
