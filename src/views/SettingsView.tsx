@@ -15,7 +15,6 @@ import {
 import { useSettings, useTrainingStore } from '../store/store';
 import { AIEnginePanel, SystemStatsPanel, FeedbackPanel, SimulatorPanel, CategoryManager } from '../components/lab';
 import { OneRMAnchorManager } from '../components/common/OneRMAnchorManager';
-import type { MovementPattern, MuscleGroup } from '../core/exercises/exercise.model';
 
 export function SettingsView() {
     const settings = useSettings();
@@ -32,9 +31,9 @@ export function SettingsView() {
 
     // TrainingConfig
     const trainingConfig = useTrainingStore((s) => s.trainingConfig);
-    const updatePatternLabel = useTrainingStore((s) => s.updatePatternLabel);
+    const _updatePatternLabel = useTrainingStore((s) => s.updatePatternLabel);
     const togglePattern = useTrainingStore((s) => s.togglePattern);
-    const updateMuscleGroupLabel = useTrainingStore((s) => s.updateMuscleGroupLabel);
+    const _updateMuscleGroupLabel = useTrainingStore((s) => s.updateMuscleGroupLabel);
     const toggleMuscleGroup = useTrainingStore((s) => s.toggleMuscleGroup);
     const updateAnalysisSettings = useTrainingStore((s) => s.updateAnalysisSettings);
 
@@ -489,8 +488,8 @@ export function SettingsView() {
                                         <button
                                             onClick={() => setRoleMode('coach')}
                                             className={`flex-1 p-3 rounded-lg text-sm font-medium transition-all ${roleMode === 'coach'
-                                                    ? 'bg-[var(--color-accent-gold)] text-black'
-                                                    : 'bg-[#1A1A1A] text-gray-400 hover:bg-[#222]'
+                                                ? 'bg-[var(--color-accent-gold)] text-black'
+                                                : 'bg-[#1A1A1A] text-gray-400 hover:bg-[#222]'
                                                 }`}
                                         >
                                             🏋️ Coach
@@ -498,8 +497,8 @@ export function SettingsView() {
                                         <button
                                             onClick={() => setRoleMode('athlete')}
                                             className={`flex-1 p-3 rounded-lg text-sm font-medium transition-all ${roleMode === 'athlete'
-                                                    ? 'bg-blue-600 text-white'
-                                                    : 'bg-[#1A1A1A] text-gray-400 hover:bg-[#222]'
+                                                ? 'bg-blue-600 text-white'
+                                                : 'bg-[#1A1A1A] text-gray-400 hover:bg-[#222]'
                                                 }`}
                                         >
                                             🏃 Athlete
@@ -507,8 +506,8 @@ export function SettingsView() {
                                         <button
                                             onClick={() => setRoleMode('admin')}
                                             className={`flex-1 p-3 rounded-lg text-sm font-medium transition-all ${roleMode === 'admin'
-                                                    ? 'bg-purple-600 text-white'
-                                                    : 'bg-[#1A1A1A] text-gray-400 hover:bg-[#222]'
+                                                ? 'bg-purple-600 text-white'
+                                                : 'bg-[#1A1A1A] text-gray-400 hover:bg-[#222]'
                                                 }`}
                                         >
                                             🔧 Admin

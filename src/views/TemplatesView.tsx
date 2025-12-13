@@ -12,7 +12,6 @@ import { Modal, Input } from '../components/ui';
 import {
     AuraSection,
     AuraGrid,
-    AuraCard,
     AuraPanel,
     AuraButton,
     AuraBadge,
@@ -24,7 +23,7 @@ import { useTrainingStore, useTemplates, useExercises } from '../store/store';
 import { useTemplateGenerator, useAIEnabled } from '../ai';
 import { useTrainingPlan } from '../hooks';
 import { getRecommendedTemplates, getTemplateBadge } from '../utils/templateHelpers';
-import type { WorkoutTemplate, TemplateExercise, Exercise } from '../types/types';
+import type { WorkoutTemplate, TemplateExercise } from '../types/types';
 
 export function TemplatesView() {
     const templates = useTemplates();

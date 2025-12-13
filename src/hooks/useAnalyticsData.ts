@@ -17,7 +17,6 @@ import { useSessions, useAthletes, useExercises, useTrainingPlans, useTrainingSt
 import { getSessionLog } from '../utils/sessionLog';
 import { getWeeklyIntensityFatigue } from '../core/analysis/metrics';
 import {
-    filterCompletedSessions,
     calculateTotalVolume,
     calculateTotalDuration,
     calculateAvgDuration,
@@ -39,8 +38,6 @@ import {
 import {
     getWeeklyVolumeSeries,
     getTopExercisesByVolume,
-    type WeeklyVolumePoint,
-    type TopExerciseData,
 } from '../domain/performance/metrics';
 import type { WorkoutSession, Athlete, Exercise, TrainingPlan } from '../types/types';
 

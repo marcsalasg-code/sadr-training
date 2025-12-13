@@ -19,8 +19,6 @@ import {
     isTrainingDay,
     getDayPlanForDate,
     groupSessionsByDate,
-    MONTH_NAMES_FULL,
-    DAY_NAMES_SHORT,
 } from '../domain/plans/calendar';
 import type { WorkoutSession, TrainingPlan, DayPlan, Athlete } from '../types/types';
 
