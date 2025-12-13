@@ -268,6 +268,25 @@ npm run dev
 
 ---
 
+## 📊 Lint Baseline (Phase 11A)
+
+**Lint aceptado**: 87 errors, 3 warnings  
+**Fecha**: 2025-12-13  
+**Commits**: `031a824`, `07104d8`
+
+### Distribución de Errores Restantes
+| Área | Errores | Notas |
+|------|---------|-------|
+| `src/domain/**` | ~10 | Mappers, types (CONGELADO) |
+| `src/core/**` | ~5 | Metrics engine (CONGELADO) |
+| `src/store/**` | ~3 | Store, slices (CONGELADO) |
+| `src/hooks/useLiveSession.ts` | ~8 | Domain imports (CONGELADO) |
+| Otros (views/components) | ~60 | Mayormente react-refresh, hook deps |
+
+### Regla de Lint en Zonas Congeladas
+
+> **IMPORTANTE**: No reducir lint en `domain/`, `core/`, `store/`, o `useLiveSession.ts` sin plan aprobado. Estos errores son aceptados como baseline técnico.
+
 ## 🔍 Diferencia Plan vs Realidad
 
 > **IMPORTANTE**: En documentación y conversaciones anteriores se mencionaron componentes que **NO EXISTEN** en este repositorio:
