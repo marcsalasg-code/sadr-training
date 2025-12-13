@@ -11,16 +11,11 @@ import { AuraLoadingState } from './components/ui/aura';
 import {
   Dashboard,
   AthletesList,
-  SessionBuilder,
   LiveSession,
-  TemplatesView,
-  ExercisesView,
-  CalendarView,
 } from './views';
 
 // Lazy load heavy views for better initial load performance
 const AnalyticsView = lazy(() => import('./views/AnalyticsView').then(m => ({ default: m.AnalyticsView })));
-const InternalLab = lazy(() => import('./views/InternalLab').then(m => ({ default: m.InternalLab })));
 const PlanningView = lazy(() => import('./views/PlanningView').then(m => ({ default: m.PlanningView })));
 const SettingsView = lazy(() => import('./views/SettingsView').then(m => ({ default: m.SettingsView })));
 const AthleteDetail = lazy(() => import('./views/AthleteDetail').then(m => ({ default: m.AthleteDetail })));

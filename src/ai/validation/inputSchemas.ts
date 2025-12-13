@@ -11,7 +11,7 @@
  */
 
 import { z } from 'zod';
-import type { Athlete, Exercise, WorkoutSession, WorkoutTemplate, DifficultyLevel } from '../../types/types';
+// Types referenced in comments for documentation purposes
 
 // ============================================
 // BASE SCHEMAS (reusable building blocks)
