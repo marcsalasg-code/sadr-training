@@ -160,6 +160,7 @@ export function CalendarView() {
                         const dayPlan = getDayPlanForDate(date);
 
                         const hasPlanned = daySessions.some(s => s.status === 'planned');
+                        const hasReserved = daySessions.some(s => s.status === 'reserved');
                         const hasInProgress = daySessions.some(s => s.status === 'in_progress');
                         const hasCompleted = daySessions.some(s => s.status === 'completed');
 
@@ -200,6 +201,7 @@ export function CalendarView() {
                                         <div className="flex gap-1">
                                             {hasInProgress && <div className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent-gold)] animate-pulse" />}
                                             {hasCompleted && <div className="w-1.5 h-1.5 rounded-full bg-green-500" />}
+                                            {hasReserved && <div className="w-1.5 h-1.5 rounded-full bg-purple-500" />}
                                             {hasPlanned && <div className="w-1.5 h-1.5 rounded-full bg-gray-500" />}
                                         </div>
                                     )}
@@ -223,7 +225,9 @@ export function CalendarView() {
                                                         ? 'bg-[var(--color-accent-gold)] text-black font-bold'
                                                         : session.status === 'cancelled'
                                                             ? 'border border-dashed border-[#333] text-gray-500 opacity-50'
-                                                            : 'border border-dashed border-[#333] text-gray-400'
+                                                            : session.status === 'reserved'
+                                                                ? 'border border-dashed border-purple-500/50 text-purple-400 bg-purple-900/10'
+                                                                : 'border border-dashed border-[#333] text-gray-400'
                                                 }
                                             `}
                                         >

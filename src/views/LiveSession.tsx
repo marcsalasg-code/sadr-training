@@ -109,8 +109,8 @@ export function LiveSession() {
     // PHASE 1: State-based rendering
     // ============================================
 
-    // Planned session → Show pre-session view
-    if (session.status === 'planned') {
+    // Planned or reserved session → Show pre-session view
+    if (session.status === 'planned' || session.status === 'reserved') {
         return (
             <SessionNotStarted
                 session={session}

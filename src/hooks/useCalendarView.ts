@@ -117,6 +117,7 @@ const SESSION_TYPE_ICONS: Record<string, string> = {
 };
 
 const STATUS_CONFIG: Record<string, { label: string; variant: 'default' | 'gold' | 'success' | 'error' }> = {
+    reserved: { label: 'Reservada', variant: 'default' },
     planned: { label: 'Planned', variant: 'default' },
     in_progress: { label: 'In Progress', variant: 'gold' },
     completed: { label: 'Completed', variant: 'success' },

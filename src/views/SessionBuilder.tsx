@@ -26,6 +26,7 @@ import {
     SessionCreateModal,
 } from '../components/session';
 import { Modal } from '../components/ui/Modal';
+import { SlotPickerModal } from '../components/scheduling/SlotPickerModal';
 import { useTrainingStore, useSessions, useAthletes, useTemplates, useExercises } from '../store/store';
 import { useAIEnabled } from '../ai';
 import { useTrainingPlan } from '../hooks';
@@ -51,17 +52,28 @@ interface SessionEditorProps {
     onClose: () => void;
     onSave: (exercises: ExerciseEntry[]) => void;
     onSaveAndStart: (exercises: ExerciseEntry[]) => void;
+    onReschedule: (scheduledDate: string) => void;
 }
 
-function SessionEditor({ session, onClose, onSave, onSaveAndStart }: SessionEditorProps) {
+function SessionEditor({ session, onClose, onSave, onSaveAndStart, onReschedule }: SessionEditorProps) {
     const exercises = useExercises();
     const athletes = useAthletes();
     const [editableExercises, setEditableExercises] = useState<ExerciseEntry[]>(session.exercises);
     const [showAddExercise, setShowAddExercise] = useState(false);
+    const [showReschedule, setShowReschedule] = useState(false);
     const [hasChanges, setHasChanges] = useState(false);
     const [saveError, setSaveError] = useState<string | null>(null);
 
     const athlete = athletes.find(a => a.id === session.athleteId);
+
+    // Parse scheduled date for SlotPickerModal
+    const initialRescheduleDate = session.scheduledDate ? session.scheduledDate.split('T')[0] : '';
+    const initialRescheduleTime = session.scheduledDate
+        ? session.scheduledDate.split('T')[1]?.substring(0, 5) || '09:00'
+        : '09:00';
+
+    // Can reschedule if planned/reserved and has scheduledDate
+    const canReschedule = (session.status === 'planned' || session.status === 'reserved') && !!session.scheduledDate;
 
     // Create exercises map for quick lookup
     const exercisesMap = useMemo(() => {
@@ -124,9 +136,16 @@ function SessionEditor({ session, onClose, onSave, onSaveAndStart }: SessionEdit
                         {athlete?.name || 'Sin atleta'} • {session.status === 'reserved' ? '📌 Reservada' : '📋 Planificada'}
                     </p>
                 </div>
-                <AuraButton variant="secondary" onClick={onClose}>
-                    ← Volver
-                </AuraButton>
+                <div className="flex items-center gap-2">
+                    {canReschedule && (
+                        <AuraButton variant="ghost" onClick={() => setShowReschedule(true)}>
+                            🗓 Reprogramar
+                        </AuraButton>
+                    )}
+                    <AuraButton variant="secondary" onClick={onClose}>
+                        ← Volver
+                    </AuraButton>
+                </div>
             </div>
 
             {/* Session Info */}
@@ -257,6 +276,23 @@ function SessionEditor({ session, onClose, onSave, onSaveAndStart }: SessionEdit
                     )}
                 </div>
             </Modal>
+
+            {/* Reschedule Modal */}
+            <SlotPickerModal
+                isOpen={showReschedule}
+                title="🗓 Reprogramar sesión"
+                onConfirm={(result) => {
+                    const newScheduledDate = `${result.date}T${result.time}:00.000Z`;
+                    onReschedule(newScheduledDate);
+                    setShowReschedule(false);
+                }}
+                onCancel={() => setShowReschedule(false)}
+                athletes={athletes.filter(a => a.isActive !== false).map(a => ({ id: a.id, name: a.name }))}
+                initialDate={initialRescheduleDate}
+                initialTime={initialRescheduleTime}
+                initialAthleteId={session.athleteId}
+                confirmButtonText="Guardar nueva fecha"
+            />
         </div>
     );
 }
@@ -367,6 +403,16 @@ export function SessionBuilder({ editSessionId, editMode }: SessionBuilderProps)
         }
     }, [sessionToEdit, updateSession, navigate]);
 
+    // Handle reschedule (update scheduledDate)
+    const handleReschedule = useCallback((scheduledDate: string) => {
+        if (sessionToEdit) {
+            updateSession(sessionToEdit.id, {
+                scheduledDate,
+                updatedAt: new Date().toISOString(),
+            });
+        }
+    }, [sessionToEdit, updateSession]);
+
     // If in edit mode, show editor
     if (editSessionId && editMode) {
         if (!sessionToEdit) {
@@ -378,6 +424,7 @@ export function SessionBuilder({ editSessionId, editMode }: SessionBuilderProps)
                 onClose={handleCloseEditMode}
                 onSave={handleSaveSession}
                 onSaveAndStart={handleSaveAndStart}
+                onReschedule={handleReschedule}
             />
         );
     }

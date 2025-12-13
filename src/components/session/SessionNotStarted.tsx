@@ -1,9 +1,11 @@
 /**
  * SessionNotStarted - Pre-session view before starting workout
- * 
+ *
  * Shows session preview with exercise list and "Start Session" button.
- * Displayed when session.status === 'planned'
+ * Displayed when session.status === 'planned' or 'reserved'
  */
+
+import { useNavigate } from 'react-router-dom';
 
 import {
     AuraPanel,
@@ -39,10 +41,21 @@ export function SessionNotStarted({
     onEdit,
     onBack,
 }: SessionNotStartedProps) {
+    const navigate = useNavigate();
+
+    // Status display
+    const isReserved = session.status === 'reserved';
+    const statusLabel = isReserved ? 'Reservada' : 'Planificada';
+
     // Calculate totals
     const totalExercises = session.exercises.length;
     const totalSets = session.exercises.reduce((sum, ex) => sum + ex.sets.length, 0);
     const estimatedDuration = Math.round(totalSets * 2.5); // ~2.5 min per set
+
+    // Navigate to edit mode in Planning
+    const handleEditInPlanning = () => {
+        navigate(`/planning?tab=sessions&sessionId=${session.id}&mode=edit`);
+    };
 
     return (
         <div className="p-8 space-y-6 max-w-4xl mx-auto">
@@ -51,7 +64,9 @@ export function SessionNotStarted({
                 <div className="flex items-start justify-between">
                     <div>
                         <div className="flex items-center gap-2 mb-2">
-                            <AuraBadge variant="default">Planned</AuraBadge>
+                            <AuraBadge variant={isReserved ? 'default' : 'default'}>
+                                {isReserved ? '📌' : '📋'} {statusLabel}
+                            </AuraBadge>
                             {session.origin === 'plan' && (
                                 <AuraBadge variant="gold">From Plan</AuraBadge>
                             )}
@@ -75,10 +90,10 @@ export function SessionNotStarted({
                     </div>
                     <div className="flex gap-2">
                         <AuraButton variant="ghost" onClick={onBack}>
-                            ← Back
+                            ← Volver
                         </AuraButton>
-                        <AuraButton variant="secondary" onClick={onEdit}>
-                            Edit Session
+                        <AuraButton variant="secondary" onClick={handleEditInPlanning}>
+                            ✏️ Editar sesión
                         </AuraButton>
                     </div>
                 </div>
