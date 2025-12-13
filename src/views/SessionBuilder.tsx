@@ -58,6 +58,7 @@ interface SessionEditorProps {
 function SessionEditor({ session, onClose, onSave, onSaveAndStart, onReschedule }: SessionEditorProps) {
     const exercises = useExercises();
     const athletes = useAthletes();
+    const allSessions = useSessions();
     const [editableExercises, setEditableExercises] = useState<ExerciseEntry[]>(session.exercises);
     const [showAddExercise, setShowAddExercise] = useState(false);
     const [showReschedule, setShowReschedule] = useState(false);
@@ -74,6 +75,16 @@ function SessionEditor({ session, onClose, onSave, onSaveAndStart, onReschedule 
 
     // Can reschedule if planned/reserved and has scheduledDate
     const canReschedule = (session.status === 'planned' || session.status === 'reserved') && !!session.scheduledDate;
+
+    // Check for duplicate when rescheduling
+    const checkRescheduleDuplicate = useCallback((date: string, time: string, athleteId: string): boolean => {
+        const scheduledPrefix = `${date}T${time}`;
+        return allSessions.some(s =>
+            s.id !== session.id &&
+            s.athleteId === athleteId &&
+            s.scheduledDate?.startsWith(scheduledPrefix)
+        );
+    }, [allSessions, session.id]);
 
     // Create exercises map for quick lookup
     const exercisesMap = useMemo(() => {
@@ -292,6 +303,8 @@ function SessionEditor({ session, onClose, onSave, onSaveAndStart, onReschedule 
                 initialTime={initialRescheduleTime}
                 initialAthleteId={session.athleteId}
                 confirmButtonText="Guardar nueva fecha"
+                checkDuplicate={checkRescheduleDuplicate}
+                duplicateWarning="Ya existe una sesión para este atleta en esa hora."
             />
         </div>
     );
