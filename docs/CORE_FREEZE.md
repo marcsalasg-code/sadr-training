@@ -2,7 +2,7 @@
 
 > **Documento de control**: Este archivo define qué partes del sistema están congeladas y no deben modificarse sin un plan aprobado.
 
-**Última actualización**: 2025-12-12  
+**Última actualización**: 2025-12-13  
 **Estado**: ACTIVO
 
 ---
@@ -38,7 +38,8 @@
 
 ### Comportamiento de Navegación
 - React Router DOM v7
-- Code splitting para `AnalyticsView` e `InternalLab` (lazy loading)
+- Code splitting (lazy loading): `AnalyticsView`, `InternalLab`, `PlanningView`, `SettingsView`, `AthleteDetail`
+- Eager loading (carga inmediata): `Dashboard`, `AthletesList`, `LiveSession`
 - Redirects para rutas antiguas (mantener compatibilidad)
 
 ---
@@ -215,6 +216,7 @@ npm run dev
 
 | Fecha | Tipo | Descripción | Aprobado |
 |-------|------|-------------|----------|
+| 2025-12-13 | Perf | Lazy loading para PlanningView, SettingsView, AthleteDetail | N/A |
 | 2025-12-12 | Doc | Creación de CORE_FREEZE.md | N/A |
 
 ---
@@ -226,3 +228,31 @@ npm run dev
 3. **UN objetivo** por rama/cambio
 4. **Ejecutar Smoke Test** después de cambios tipo B/C
 5. **Documentar** cualquier modificación en este archivo
+
+---
+
+## 🔍 Diferencia Plan vs Realidad
+
+> **IMPORTANTE**: En documentación y conversaciones anteriores se mencionaron componentes que **NO EXISTEN** en este repositorio:
+
+| Componente Mencionado | Estado | Equivalente Real |
+|-----------------------|--------|------------------|
+| `SessionsLibrary.tsx` | ❌ NO EXISTE | `SessionBuilder.tsx` |
+| `SlotPickerModal.tsx` | ❌ NO EXISTE | `DayAgendaPanel.tsx` |
+| `components/scheduling/` | ⚠️ Carpeta vacía | Lógica en `components/dashboard/` |
+
+### Flujo Real de Agenda (Dashboard)
+
+```
+Dashboard
+  └── WeeklyScheduleWidget (vista semanal con días clicables)
+        └── Click en día → abre DayAgendaPanel
+              └── Muestra slots horarios 06:00-22:00
+              └── Selector de atleta
+              └── Botones: "Reservar" (stub) / "Crear sesión"
+                    └── "Crear sesión" → navega a /planning?tab=sessions
+```
+
+### Regla Anti-Bucle
+
+**Cualquier fase futura que mencione `SessionsLibrary`, `SlotPickerModal` u otros componentes no existentes debe tratarse como TRABAJO NUEVO A IMPLEMENTAR, no como archivos a "restaurar" o "sincronizar".**
