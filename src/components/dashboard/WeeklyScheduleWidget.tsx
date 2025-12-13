@@ -6,6 +6,7 @@
  * - Gold accent on today
  * - Session name visible directly on calendar
  * - Click to start session directly
+ * - ITERATION 1: Click on day cell opens DayAgendaPanel
  */
 
 import { useState } from 'react';
@@ -16,6 +17,7 @@ import {
     AuraBadge,
 } from '../ui/aura';
 import { useWeeklySchedule } from '../../hooks/useWeeklySchedule';
+import { DayAgendaPanel } from './DayAgendaPanel';
 import type { WeekDay, SessionSummary } from '../../hooks/useWeeklySchedule';
 
 // ============================================
@@ -58,9 +60,10 @@ interface DayCellProps {
     day: WeekDay;
     onStartSession: (sessionId: string) => void;
     onCreateSession: (date: string) => void;
+    onDayClick: (date: string) => void;
 }
 
-function DayCell({ day, onStartSession, onCreateSession }: DayCellProps) {
+function DayCell({ day, onStartSession, onCreateSession, onDayClick }: DayCellProps) {
     const navigate = useNavigate();
     const hasInProgress = day.sessions.some(s => s.status === 'in_progress');
 
@@ -72,10 +75,16 @@ function DayCell({ day, onStartSession, onCreateSession }: DayCellProps) {
         }
     };
 
+    // Handle full cell click - opens DayAgendaPanel
+    const handleCellClick = () => {
+        onDayClick(day.date);
+    };
+
     return (
         <div
+            onClick={handleCellClick}
             className={`
-                relative flex flex-col min-h-[140px] p-3 rounded-xl border transition-all
+                relative flex flex-col min-h-[140px] p-3 rounded-xl border transition-all cursor-pointer
                 ${day.isToday
                     ? 'bg-gradient-to-b from-[#C5A572]/10 to-[#0A0A0A] border-[#C5A572] shadow-lg shadow-[#C5A572]/10'
                     : 'bg-[#141414] border-[#2A2A2A] hover:border-[#444] hover:bg-[#1A1A1A]'
@@ -117,7 +126,10 @@ function DayCell({ day, onStartSession, onCreateSession }: DayCellProps) {
                 ))}
 
                 {day.sessions.length > 3 && (
-                    <span className="text-[10px] text-gray-500 pl-1">
+                    <span
+                        className="text-[10px] text-gray-500 pl-1"
+                        onClick={(e) => e.stopPropagation()}
+                    >
                         +{day.sessions.length - 3} more
                     </span>
                 )}
@@ -126,7 +138,7 @@ function DayCell({ day, onStartSession, onCreateSession }: DayCellProps) {
             {/* Add Session Button (for empty days) */}
             {day.sessions.length === 0 && !day.isPast && (
                 <button
-                    onClick={() => onCreateSession(day.date)}
+                    onClick={(e) => { e.stopPropagation(); onCreateSession(day.date); }}
                     className="mt-auto py-2 text-xs text-gray-500 hover:text-[#C5A572] transition-colors flex items-center justify-center gap-1"
                 >
                     <span className="text-lg leading-none">+</span>
@@ -137,7 +149,7 @@ function DayCell({ day, onStartSession, onCreateSession }: DayCellProps) {
             {/* Add more for days with sessions */}
             {day.sessions.length > 0 && !day.isPast && (
                 <button
-                    onClick={() => onCreateSession(day.date)}
+                    onClick={(e) => { e.stopPropagation(); onCreateSession(day.date); }}
                     className="absolute bottom-2 right-2 w-6 h-6 rounded-full bg-[#222] hover:bg-[#333] flex items-center justify-center text-gray-500 hover:text-[#C5A572] transition-all text-sm"
                     title="Add session"
                 >
@@ -169,6 +181,21 @@ export function WeeklyScheduleWidget() {
         createSessionForDate,
         startSession,
     } = useWeeklySchedule();
+
+    // Day Agenda Panel state (ITERATION 1)
+    const [selectedDate, setSelectedDate] = useState<string | null>(null);
+    const [showAgendaPanel, setShowAgendaPanel] = useState(false);
+
+    // Handle day cell click - opens DayAgendaPanel
+    const handleDayClick = (date: string) => {
+        setSelectedDate(date);
+        setShowAgendaPanel(true);
+    };
+
+    // Close agenda panel
+    const handleCloseAgendaPanel = () => {
+        setShowAgendaPanel(false);
+    };
 
     // Stats
     const totalSessions = weekDays.reduce((sum, d) => sum + d.sessions.length, 0);
@@ -228,6 +255,7 @@ export function WeeklyScheduleWidget() {
                         day={day}
                         onStartSession={startSession}
                         onCreateSession={createSessionForDate}
+                        onDayClick={handleDayClick}
                     />
                 ))}
             </div>
@@ -243,6 +271,15 @@ export function WeeklyScheduleWidget() {
                         + Schedule Sessions
                     </AuraButton>
                 </div>
+            )}
+
+            {/* Day Agenda Panel (ITERATION 1) */}
+            {selectedDate && (
+                <DayAgendaPanel
+                    isOpen={showAgendaPanel}
+                    onClose={handleCloseAgendaPanel}
+                    selectedDate={selectedDate}
+                />
             )}
         </div>
     );
