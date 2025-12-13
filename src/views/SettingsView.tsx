@@ -28,7 +28,7 @@ export function SettingsView() {
     const [importError, setImportError] = useState<string | null>(null);
     const [importSuccess, setImportSuccess] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState<'training' | 'categories' | 'interface' | 'data' | 'advanced'>('training');
-    const [advancedSubTab, setAdvancedSubTab] = useState<'ai' | 'anchors' | 'categories' | 'feedback' | 'simulator' | 'system'>('ai');
+    const [advancedSubTab, setAdvancedSubTab] = useState<'experimental' | 'ai' | 'anchors' | 'categories' | 'feedback' | 'simulator' | 'system'>('experimental');
 
     // TrainingConfig
     const trainingConfig = useTrainingStore((s) => s.trainingConfig);
@@ -37,6 +37,10 @@ export function SettingsView() {
     const updateMuscleGroupLabel = useTrainingStore((s) => s.updateMuscleGroupLabel);
     const toggleMuscleGroup = useTrainingStore((s) => s.toggleMuscleGroup);
     const updateAnalysisSettings = useTrainingStore((s) => s.updateAnalysisSettings);
+
+    // Role mode (EXPERIMENTAL - Iteration 1)
+    const roleMode = useTrainingStore((s) => s.roleMode);
+    const setRoleMode = useTrainingStore((s) => s.setRoleMode);
 
     const handleSettingChange = <K extends keyof typeof settings>(
         key: K,
@@ -98,6 +102,7 @@ export function SettingsView() {
     ] as const;
 
     const advancedTabs = [
+        { id: 'experimental', label: 'Experimental', icon: '🧪' },
         { id: 'ai', label: 'AI Engine', icon: '🤖' },
         { id: 'anchors', label: '1RM Anchors', icon: '🏋️' },
         { id: 'categories', label: 'Categories', icon: '📁' },
@@ -456,8 +461,8 @@ export function SettingsView() {
                                     key={tab.id}
                                     onClick={() => setAdvancedSubTab(tab.id)}
                                     className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${advancedSubTab === tab.id
-                                            ? 'bg-purple-600 text-white'
-                                            : 'bg-[#1A1A1A] text-gray-400 hover:bg-[#222]'
+                                        ? 'bg-purple-600 text-white'
+                                        : 'bg-[#1A1A1A] text-gray-400 hover:bg-[#222]'
                                         }`}
                                 >
                                     {tab.icon} {tab.label}
@@ -467,6 +472,55 @@ export function SettingsView() {
                     </AuraPanel>
 
                     {/* Advanced Tab Content */}
+                    {advancedSubTab === 'experimental' && (
+                        <AuraPanel header={<span className="text-white font-medium">🧪 Experimental Features</span>}>
+                            <p className="text-sm text-gray-500 mb-4">
+                                Features in testing phase. May change or be removed in future versions.
+                            </p>
+
+                            {/* Role Mode Selector */}
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm text-gray-400 mb-2">Role Mode</label>
+                                    <p className="text-xs text-gray-600 mb-3">
+                                        Changes sidebar visibility based on role. No route guards in Iteration 1.
+                                    </p>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => setRoleMode('coach')}
+                                            className={`flex-1 p-3 rounded-lg text-sm font-medium transition-all ${roleMode === 'coach'
+                                                    ? 'bg-[var(--color-accent-gold)] text-black'
+                                                    : 'bg-[#1A1A1A] text-gray-400 hover:bg-[#222]'
+                                                }`}
+                                        >
+                                            🏋️ Coach
+                                        </button>
+                                        <button
+                                            onClick={() => setRoleMode('athlete')}
+                                            className={`flex-1 p-3 rounded-lg text-sm font-medium transition-all ${roleMode === 'athlete'
+                                                    ? 'bg-blue-600 text-white'
+                                                    : 'bg-[#1A1A1A] text-gray-400 hover:bg-[#222]'
+                                                }`}
+                                        >
+                                            🏃 Athlete
+                                        </button>
+                                        <button
+                                            onClick={() => setRoleMode('admin')}
+                                            className={`flex-1 p-3 rounded-lg text-sm font-medium transition-all ${roleMode === 'admin'
+                                                    ? 'bg-purple-600 text-white'
+                                                    : 'bg-[#1A1A1A] text-gray-400 hover:bg-[#222]'
+                                                }`}
+                                        >
+                                            🔧 Admin
+                                        </button>
+                                    </div>
+                                    <p className="text-xs text-gray-600 mt-2">
+                                        Current: <AuraBadge variant={roleMode === 'coach' ? 'gold' : 'muted'}>{roleMode}</AuraBadge>
+                                    </p>
+                                </div>
+                            </div>
+                        </AuraPanel>
+                    )}
                     {advancedSubTab === 'ai' && <AIEnginePanel />}
                     {advancedSubTab === 'anchors' && <OneRMAnchorManager />}
                     {advancedSubTab === 'categories' && <CategoryManager />}

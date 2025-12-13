@@ -29,3 +29,9 @@ dist-ssr
 .env
 .env.local
 .env.*.local
+
+# Backup and export folders
+app_source_export/
+src_backup_*/
+backup/
+lint_output.txt

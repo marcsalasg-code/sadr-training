@@ -1,10 +1,13 @@
 /**
  * SidebarNav - Navegación lateral estilo Aura
  * Diseño premium con agrupaciones y estética metálica
+ * 
+ * ITERATION 1: Role-based visibility filtering (visual only, no route guards)
  */
 
+import { useMemo } from 'react';
 import { NavLink } from 'react-router-dom';
-import { useSessions } from '../../store/store';
+import { useSessions, useTrainingStore } from '../../store/store';
 
 interface NavItem {
     path: string;
@@ -112,7 +115,19 @@ const navGroups: NavGroup[] = [
 
 export function SidebarNav() {
     const sessions = useSessions();
+    const roleMode = useTrainingStore((state) => state.roleMode);
     const activeSession = sessions.find(s => s.status === 'in_progress');
+
+    // Filter nav groups based on role mode (ITERATION 1 - visual only)
+    const filteredNavGroups = useMemo(() => {
+        return navGroups.filter(group => {
+            // Athlete mode: hide 'Herramientas' (Dev Lab)
+            if (roleMode === 'athlete' && group.title === 'Herramientas') {
+                return false;
+            }
+            return true;
+        });
+    }, [roleMode]);
 
     return (
         <aside className="w-64 bg-[#111111] border-r border-[var(--color-border-default)] flex flex-col relative z-40">
@@ -130,7 +145,7 @@ export function SidebarNav() {
 
                 {/* Navigation Groups */}
                 <nav className="space-y-1">
-                    {navGroups.map((group) => (
+                    {filteredNavGroups.map((group) => (
                         <div key={group.title}>
                             <div className="px-3 py-1 text-[10px] font-mono text-gray-600 uppercase tracking-widest mt-4 mb-2">
                                 {group.title}

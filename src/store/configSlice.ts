@@ -5,6 +5,7 @@
  * - Movement patterns (etiquetas, orden, visibilidad)
  * - Muscle groups (etiquetas, orden, visibilidad)
  * - Analysis settings (1RM method, volume display)
+ * - Role mode (EXPERIMENTAL - Iteration 1)
  */
 
 import type { StateCreator } from 'zustand';
@@ -22,12 +23,19 @@ import {
 } from '../core/config/trainingConfig.model';
 
 // ============================================
+// ROLE MODE TYPE (EXPERIMENTAL)
+// ============================================
+
+export type RoleMode = 'coach' | 'athlete' | 'admin';
+
+// ============================================
 // SLICE INTERFACE
 // ============================================
 
 export interface ConfigSlice {
     // State
     trainingConfig: TrainingConfig;
+    roleMode: RoleMode; // EXPERIMENTAL - Iteration 1
 
     // Pattern actions
     updatePatternLabel: (patternId: MovementPattern, label: string) => void;
@@ -43,6 +51,9 @@ export interface ConfigSlice {
 
     // Analysis actions
     updateAnalysisSettings: (updates: Partial<AnalysisConfig>) => void;
+
+    // Role mode actions (EXPERIMENTAL)
+    setRoleMode: (mode: RoleMode) => void;
 
     // Getters (memoization-friendly)
     getEnabledPatterns: () => PatternConfig[];
@@ -65,6 +76,7 @@ export const createConfigSlice: StateCreator<
     ConfigSlice
 > = (set, get) => ({
     trainingConfig: DEFAULT_TRAINING_CONFIG,
+    roleMode: 'coach', // Default role mode
 
     // === Pattern Actions ===
     updatePatternLabel: (patternId, label) => {
@@ -200,6 +212,11 @@ export const createConfigSlice: StateCreator<
         }));
     },
 
+    // === Role Mode Actions (EXPERIMENTAL) ===
+    setRoleMode: (mode) => {
+        set({ roleMode: mode });
+    },
+
     // === Getters (use these to avoid creating new refs) ===
     getEnabledPatterns: () => getEnabledPatterns(get().trainingConfig),
     getEnabledMuscleGroups: () => getEnabledMuscleGroups(get().trainingConfig),
@@ -216,6 +233,6 @@ export const createConfigSlice: StateCreator<
 
     // === Reset ===
     resetToDefaults: () => {
-        set({ trainingConfig: DEFAULT_TRAINING_CONFIG });
+        set({ trainingConfig: DEFAULT_TRAINING_CONFIG, roleMode: 'coach' });
     },
 });
