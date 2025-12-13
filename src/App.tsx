@@ -11,19 +11,19 @@ import { AuraLoadingState } from './components/ui/aura';
 import {
   Dashboard,
   AthletesList,
-  AthleteDetail,
   SessionBuilder,
   LiveSession,
   TemplatesView,
   ExercisesView,
   CalendarView,
-  SettingsView,
-  PlanningView,
 } from './views';
 
 // Lazy load heavy views for better initial load performance
 const AnalyticsView = lazy(() => import('./views/AnalyticsView').then(m => ({ default: m.AnalyticsView })));
 const InternalLab = lazy(() => import('./views/InternalLab').then(m => ({ default: m.InternalLab })));
+const PlanningView = lazy(() => import('./views/PlanningView').then(m => ({ default: m.PlanningView })));
+const SettingsView = lazy(() => import('./views/SettingsView').then(m => ({ default: m.SettingsView })));
+const AthleteDetail = lazy(() => import('./views/AthleteDetail').then(m => ({ default: m.AthleteDetail })));
 
 // Loading fallback component
 function LoadingFallback() {
@@ -41,9 +41,17 @@ function App() {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/athletes" element={<AthletesList />} />
-          <Route path="/athletes/:id" element={<AthleteDetail />} />
+          <Route path="/athletes/:id" element={
+            <Suspense fallback={<LoadingFallback />}>
+              <AthleteDetail />
+            </Suspense>
+          } />
           {/* New unified planning view */}
-          <Route path="/planning" element={<PlanningView />} />
+          <Route path="/planning" element={
+            <Suspense fallback={<LoadingFallback />}>
+              <PlanningView />
+            </Suspense>
+          } />
           {/* Keep old routes for direct access and backward compatibility */}
           <Route path="/sessions" element={<Navigate to="/planning?tab=sessions" replace />} />
           <Route path="/sessions/live/:id" element={<LiveSession />} />
@@ -56,7 +64,11 @@ function App() {
             </Suspense>
           } />
           <Route path="/analytics/training" element={<Navigate to="/analytics?tab=training" replace />} />
-          <Route path="/settings" element={<SettingsView />} />
+          <Route path="/settings" element={
+            <Suspense fallback={<LoadingFallback />}>
+              <SettingsView />
+            </Suspense>
+          } />
           {/* Lab moved to settings, redirect for backward compatibility */}
           <Route path="/lab" element={<Navigate to="/settings?tab=advanced" replace />} />
         </Routes>
