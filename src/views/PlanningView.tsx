@@ -3,9 +3,11 @@
  * 
  * Consolida: Sesiones, Plantillas, Calendario, Ejercicios
  * Cada sección es un tab interno para reducir fragmentación
+ * 
+ * URL Sync: Reacts to ?tab, ?sessionId, ?mode changes
  */
 
-import { useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { AuraSection } from '../components/ui/aura';
 import { SessionBuilder } from './SessionBuilder';
@@ -22,14 +24,35 @@ const TABS: { id: PlanningTab; label: string; icon: string }[] = [
     { id: 'exercises', label: 'Ejercicios', icon: '💪' },
 ];
 
+const VALID_TABS = new Set<string>(['sessions', 'templates', 'calendar', 'exercises']);
+
 export function PlanningView() {
     const [searchParams, setSearchParams] = useSearchParams();
-    const tabParam = searchParams.get('tab') as PlanningTab | null;
-    const [activeTab, setActiveTab] = useState<PlanningTab>(tabParam || 'sessions');
+
+    // Derive activeTab directly from URL (reactive)
+    const activeTab = useMemo<PlanningTab>(() => {
+        const tab = searchParams.get('tab');
+        return (tab && VALID_TABS.has(tab) ? tab : 'sessions') as PlanningTab;
+    }, [searchParams]);
+
+    // Read sessionId and mode
+    const sessionId = searchParams.get('sessionId');
+    const mode = searchParams.get('mode');
+
+    // Force tab=sessions if sessionId is present but tab is different
+    useEffect(() => {
+        if (sessionId && activeTab !== 'sessions') {
+            const params = new URLSearchParams(searchParams);
+            params.set('tab', 'sessions');
+            setSearchParams(params, { replace: true });
+        }
+    }, [sessionId, activeTab, searchParams, setSearchParams]);
 
     const handleTabChange = (tab: PlanningTab) => {
-        setActiveTab(tab);
-        setSearchParams({ tab });
+        // When changing tabs, clear session-specific params
+        const params = new URLSearchParams();
+        params.set('tab', tab);
+        setSearchParams(params);
     };
 
     return (
@@ -67,7 +90,12 @@ export function PlanningView() {
 
             {/* Tab Content */}
             <div className="bg-[var(--color-bg-primary)]">
-                {activeTab === 'sessions' && <SessionBuilder />}
+                {activeTab === 'sessions' && (
+                    <SessionBuilder
+                        editSessionId={sessionId || undefined}
+                        editMode={mode === 'edit'}
+                    />
+                )}
                 {activeTab === 'templates' && <TemplatesView />}
                 {activeTab === 'calendar' && <CalendarView />}
                 {activeTab === 'exercises' && <ExercisesView />}

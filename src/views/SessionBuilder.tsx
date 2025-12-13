@@ -2,14 +2,20 @@
  * SessionBuilder - Constructor y gestor de sesiones de entrenamiento
  * 
  * REFACTORED: Container component that orchestrates section components
- * Original: 561 lines → Now: ~250 lines
+ * 
+ * Supports:
+ * - Session list view (default)
+ * - Edit mode: editing a session by sessionId + mode=edit from URL
  */
 
-import { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
     AuraSection,
     AuraButton,
+    AuraCard,
+    AuraEmptyState,
+    AuraBadge,
 } from '../components/ui/aura';
 import {
     AISessionGeneratorModal,
@@ -19,19 +25,275 @@ import {
     SessionsListByStatus,
     SessionCreateModal,
 } from '../components/session';
+import { Modal } from '../components/ui/Modal';
 import { useTrainingStore, useSessions, useAthletes, useTemplates, useExercises } from '../store/store';
 import { useAIEnabled } from '../ai';
 import { useTrainingPlan } from '../hooks';
 import { getRecommendedTemplates, getTemplateBadge } from '../utils/templateHelpers';
 import { createDefaultMigrationStructure, DEFAULT_BLOCK_ID } from '../core/sessions/sessionStructure.migration';
-import type { ExerciseEntry } from '../types/types';
+import type { ExerciseEntry, WorkoutSession } from '../types/types';
 
-export function SessionBuilder() {
+// ============================================
+// PROPS
+// ============================================
+
+interface SessionBuilderProps {
+    editSessionId?: string;
+    editMode?: boolean;
+}
+
+// ============================================
+// SESSION EDITOR COMPONENT
+// ============================================
+
+interface SessionEditorProps {
+    session: WorkoutSession;
+    onClose: () => void;
+    onSave: (exercises: ExerciseEntry[]) => void;
+    onSaveAndStart: (exercises: ExerciseEntry[]) => void;
+}
+
+function SessionEditor({ session, onClose, onSave, onSaveAndStart }: SessionEditorProps) {
+    const exercises = useExercises();
+    const athletes = useAthletes();
+    const [editableExercises, setEditableExercises] = useState<ExerciseEntry[]>(session.exercises);
+    const [showAddExercise, setShowAddExercise] = useState(false);
+    const [hasChanges, setHasChanges] = useState(false);
+    const [saveError, setSaveError] = useState<string | null>(null);
+
+    const athlete = athletes.find(a => a.id === session.athleteId);
+
+    // Create exercises map for quick lookup
+    const exercisesMap = useMemo(() => {
+        const map = new Map<string, typeof exercises[0]>();
+        for (const ex of exercises) {
+            map.set(ex.id, ex);
+        }
+        return map;
+    }, [exercises]);
+
+    // Get exercise name
+    const getExerciseName = useCallback((exerciseId: string) => {
+        return exercisesMap.get(exerciseId)?.name || 'Ejercicio desconocido';
+    }, [exercisesMap]);
+
+    // Add exercise
+    const handleAddExercise = (exerciseId: string) => {
+        const newExercise: ExerciseEntry = {
+            id: crypto.randomUUID(),
+            exerciseId,
+            order: editableExercises.length,
+            sets: [], // Start with empty sets - user can add them in LiveSession
+        };
+        setEditableExercises(prev => [...prev, newExercise]);
+        setHasChanges(true);
+        setShowAddExercise(false);
+    };
+
+    // Remove exercise
+    const handleRemoveExercise = (exerciseId: string) => {
+        setEditableExercises(prev =>
+            prev.filter(e => e.id !== exerciseId)
+                .map((e, i) => ({ ...e, order: i }))
+        );
+        setHasChanges(true);
+    };
+
+    // Save
+    const handleSave = () => {
+        onSave(editableExercises);
+        setHasChanges(false);
+    };
+
+    // Save and start
+    const handleSaveAndStart = () => {
+        if (editableExercises.length === 0) {
+            setSaveError('Añade al menos un ejercicio antes de iniciar la sesión.');
+            return;
+        }
+        onSaveAndStart(editableExercises);
+    };
+
+    return (
+        <div className="p-8 space-y-6 max-w-4xl mx-auto">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+                <div>
+                    <h2 className="text-2xl font-semibold text-white">{session.name}</h2>
+                    <p className="text-sm text-gray-400 mt-1">
+                        {athlete?.name || 'Sin atleta'} • {session.status === 'reserved' ? '📌 Reservada' : '📋 Planificada'}
+                    </p>
+                </div>
+                <AuraButton variant="secondary" onClick={onClose}>
+                    ← Volver
+                </AuraButton>
+            </div>
+
+            {/* Session Info */}
+            {session.scheduledDate && (
+                <div className="flex items-center gap-2 text-sm text-gray-400">
+                    <span>📅</span>
+                    <span>
+                        {new Date(session.scheduledDate).toLocaleDateString('es-ES', {
+                            weekday: 'long',
+                            day: 'numeric',
+                            month: 'long',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                        })}
+                    </span>
+                </div>
+            )}
+
+            {/* Error message */}
+            {saveError && (
+                <div className="p-4 rounded-lg bg-red-900/30 border border-red-600 text-red-200 text-sm">
+                    ⚠️ {saveError}
+                </div>
+            )}
+
+            {/* Exercises List */}
+            <AuraCard>
+                <div className="p-4 border-b border-[#2A2A2A] flex items-center justify-between">
+                    <h3 className="font-medium text-white">
+                        Ejercicios ({editableExercises.length})
+                    </h3>
+                    <AuraButton
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => setShowAddExercise(true)}
+                    >
+                        + Añadir ejercicio
+                    </AuraButton>
+                </div>
+
+                {editableExercises.length === 0 ? (
+                    <div className="p-8">
+                        <AuraEmptyState
+                            icon="💪"
+                            title="Sin ejercicios"
+                            description="Añade ejercicios para completar esta sesión."
+                            action={{
+                                label: "+ Añadir ejercicio",
+                                onClick: () => setShowAddExercise(true),
+                            }}
+                        />
+                    </div>
+                ) : (
+                    <div className="divide-y divide-[#2A2A2A]">
+                        {editableExercises.map((ex, index) => (
+                            <div
+                                key={ex.id}
+                                className="p-4 flex items-center justify-between hover:bg-[#1A1A1A] transition-colors"
+                            >
+                                <div className="flex items-center gap-4">
+                                    <span className="text-sm text-gray-500 font-mono w-6">
+                                        {index + 1}.
+                                    </span>
+                                    <div>
+                                        <p className="font-medium text-white">
+                                            {getExerciseName(ex.exerciseId)}
+                                        </p>
+                                        <p className="text-xs text-gray-500 mt-0.5">
+                                            {ex.sets.length} sets configurados
+                                        </p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => handleRemoveExercise(ex.id)}
+                                    className="p-2 text-gray-500 hover:text-red-400 transition-colors"
+                                    title="Eliminar ejercicio"
+                                >
+                                    🗑️
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </AuraCard>
+
+            {/* Actions */}
+            <div className="flex items-center justify-between pt-4 border-t border-[#2A2A2A]">
+                <div className="flex items-center gap-2">
+                    {hasChanges && (
+                        <AuraBadge variant="gold">Cambios sin guardar</AuraBadge>
+                    )}
+                </div>
+                <div className="flex items-center gap-3">
+                    <AuraButton variant="secondary" onClick={handleSave} disabled={!hasChanges}>
+                        💾 Guardar
+                    </AuraButton>
+                    <AuraButton variant="gold" onClick={handleSaveAndStart}>
+                        ▶ Guardar e iniciar
+                    </AuraButton>
+                </div>
+            </div>
+
+            {/* Add Exercise Modal */}
+            <Modal
+                isOpen={showAddExercise}
+                onClose={() => setShowAddExercise(false)}
+                title="Añadir ejercicio"
+                size="lg"
+            >
+                <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                    {exercises.length === 0 ? (
+                        <p className="text-gray-400 text-center py-8">
+                            No hay ejercicios en el catálogo.
+                        </p>
+                    ) : (
+                        exercises.map(ex => (
+                            <button
+                                key={ex.id}
+                                onClick={() => handleAddExercise(ex.id)}
+                                className="w-full p-3 text-left rounded-lg border border-[#2A2A2A] hover:border-[#C5A572] hover:bg-[#1A1A1A] transition-all"
+                            >
+                                <p className="font-medium text-white">{ex.name}</p>
+                                {ex.pattern && (
+                                    <p className="text-xs text-gray-500 mt-0.5">{ex.pattern}</p>
+                                )}
+                            </button>
+                        ))
+                    )}
+                </div>
+            </Modal>
+        </div>
+    );
+}
+
+// ============================================
+// SESSION NOT FOUND
+// ============================================
+
+function SessionNotFound({ onBack }: { onBack: () => void }) {
+    return (
+        <div className="p-8 max-w-4xl mx-auto">
+            <AuraCard className="p-8">
+                <AuraEmptyState
+                    icon="❌"
+                    title="Sesión no encontrada"
+                    description="La sesión que buscas no existe o ha sido eliminada."
+                    action={{
+                        label: "← Volver a sesiones",
+                        onClick: onBack,
+                    }}
+                />
+            </AuraCard>
+        </div>
+    );
+}
+
+// ============================================
+// MAIN COMPONENT
+// ============================================
+
+export function SessionBuilder({ editSessionId, editMode }: SessionBuilderProps) {
     const navigate = useNavigate();
+    const [searchParams, setSearchParams] = useSearchParams();
     const sessions = useSessions();
     const athletes = useAthletes();
     const templates = useTemplates();
-    const { addSession, deleteSession } = useTrainingStore();
+    const { addSession, deleteSession, updateSession } = useTrainingStore();
     const isAIEnabled = useAIEnabled();
     const { activePlan, todayPlan, weeklyAdherence } = useTrainingPlan();
     const exercises = useExercises();
@@ -44,6 +306,14 @@ export function SessionBuilder() {
         }
         return map;
     }, [exercises]);
+
+    // Check if in edit mode
+    const sessionToEdit = useMemo(() => {
+        if (editSessionId && editMode) {
+            return sessions.find(s => s.id === editSessionId);
+        }
+        return null;
+    }, [editSessionId, editMode, sessions]);
 
     // State
     const [showCreateModal, setShowCreateModal] = useState(false);
@@ -61,6 +331,51 @@ export function SessionBuilder() {
         description: '',
         scheduledDate: '',
     });
+
+    // Clear edit mode from URL
+    const handleCloseEditMode = useCallback(() => {
+        const params = new URLSearchParams(searchParams);
+        params.delete('sessionId');
+        params.delete('mode');
+        setSearchParams(params, { replace: true });
+    }, [searchParams, setSearchParams]);
+
+    // Handle save session
+    const handleSaveSession = useCallback((exercises: ExerciseEntry[]) => {
+        if (sessionToEdit) {
+            updateSession(sessionToEdit.id, {
+                exercises,
+                updatedAt: new Date().toISOString(),
+            });
+        }
+    }, [sessionToEdit, updateSession]);
+
+    // Handle save and start
+    const handleSaveAndStart = useCallback((exercises: ExerciseEntry[]) => {
+        if (sessionToEdit) {
+            updateSession(sessionToEdit.id, {
+                exercises,
+                status: 'planned', // Ensure it's planned before starting
+                updatedAt: new Date().toISOString(),
+            });
+            navigate(`/sessions/live/${sessionToEdit.id}`);
+        }
+    }, [sessionToEdit, updateSession, navigate]);
+
+    // If in edit mode, show editor
+    if (editSessionId && editMode) {
+        if (!sessionToEdit) {
+            return <SessionNotFound onBack={handleCloseEditMode} />;
+        }
+        return (
+            <SessionEditor
+                session={sessionToEdit}
+                onClose={handleCloseEditMode}
+                onSave={handleSaveSession}
+                onSaveAndStart={handleSaveAndStart}
+            />
+        );
+    }
 
     // Recommended templates
     const recommendedTemplates = useMemo(() => {
@@ -88,7 +403,7 @@ export function SessionBuilder() {
 
     // Group by status
     const sessionsByStatus = useMemo(() => ({
-        planned: filteredSessions.filter(s => s.status === 'planned'),
+        planned: filteredSessions.filter(s => s.status === 'planned' || s.status === 'reserved'),
         in_progress: filteredSessions.filter(s => s.status === 'in_progress'),
         completed: filteredSessions.filter(s => s.status === 'completed'),
     }), [filteredSessions]);
@@ -211,6 +526,20 @@ export function SessionBuilder() {
         });
     };
 
+    // Handle session click - go to edit mode for reserved/planned, go live for others
+    const handleSessionClick = (sessionId: string) => {
+        const session = sessions.find(s => s.id === sessionId);
+        if (session && (session.status === 'reserved' || session.status === 'planned')) {
+            // Open edit mode
+            const params = new URLSearchParams(searchParams);
+            params.set('sessionId', sessionId);
+            params.set('mode', 'edit');
+            setSearchParams(params);
+        } else {
+            navigate(`/sessions/live/${sessionId}`);
+        }
+    };
+
     return (
         <div className="p-8 space-y-8 max-w-6xl mx-auto">
             {/* Header */}
@@ -268,7 +597,7 @@ export function SessionBuilder() {
             <SessionsListByStatus
                 sessionsByStatus={sessionsByStatus}
                 getAthleteName={getAthleteName}
-                onSessionClick={(id) => navigate(`/sessions/live/${id}`)}
+                onSessionClick={handleSessionClick}
                 onSessionDelete={(id) => deleteSession(id)}
                 onSessionDuplicate={handleDuplicateSession}
                 emptyStateAction={() => setShowCreateModal(true)}

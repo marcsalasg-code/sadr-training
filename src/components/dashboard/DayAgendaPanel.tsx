@@ -120,9 +120,9 @@ export function DayAgendaPanel({ isOpen, onClose, selectedDate }: DayAgendaPanel
         setSelectedTime(null);
 
         if (action === 'create') {
-            // Navigate to planning with sessionId to highlight
+            // Navigate to planning with sessionId in edit mode
             onClose();
-            navigate(`/planning?tab=sessions&sessionId=${newSession.id}`);
+            navigate(`/planning?tab=sessions&sessionId=${newSession.id}&mode=edit`);
         } else {
             // For reserve, just close and show feedback
             onClose();
