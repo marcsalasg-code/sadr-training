@@ -340,19 +340,24 @@ export function SessionBuilder({ editSessionId, editMode }: SessionBuilderProps)
         setSearchParams(params, { replace: true });
     }, [searchParams, setSearchParams]);
 
-    // Handle save session
+    // Handle save session (with reserved -> planned promotion)
     const handleSaveSession = useCallback((exercises: ExerciseEntry[]) => {
         if (sessionToEdit) {
+            const hasExercises = exercises.length > 0;
+            const shouldPromote = sessionToEdit.status === 'reserved' && hasExercises;
+
             updateSession(sessionToEdit.id, {
                 exercises,
+                ...(shouldPromote ? { status: 'planned' as const } : {}),
                 updatedAt: new Date().toISOString(),
             });
         }
     }, [sessionToEdit, updateSession]);
 
-    // Handle save and start
+    // Handle save and start (always promote to planned before starting)
     const handleSaveAndStart = useCallback((exercises: ExerciseEntry[]) => {
         if (sessionToEdit) {
+            // Always set to planned when starting (handles both reserved and planned cases)
             updateSession(sessionToEdit.id, {
                 exercises,
                 status: 'planned', // Ensure it's planned before starting
