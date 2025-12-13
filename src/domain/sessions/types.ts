@@ -99,7 +99,7 @@ export interface SessionBlock {
 // SESSION STATUS & ORIGIN
 // ============================================
 
-export type SessionStatus = 'planned' | 'in_progress' | 'completed' | 'cancelled';
+export type SessionStatus = 'reserved' | 'planned' | 'in_progress' | 'completed' | 'cancelled';
 export type SessionOrigin = 'plan' | 'manual' | 'ai_suggestion';
 
 // ============================================

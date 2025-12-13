@@ -4,14 +4,16 @@
  * Opens when clicking on a day cell in WeeklyScheduleWidget.
  * Shows hour slots (06:00-22:00) with Reservar/Crear sesión actions.
  * 
- * ITERATION 1: Stub actions - no addSession, uses navigation with query params
+ * ITERATION 2: Real session creation with addSession
  */
 
-import { useState, useMemo, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Modal } from '../ui/Modal';
 import { AuraButton, AuraBadge, AuraEmptyState } from '../ui/aura';
-import { useAthletes } from '../../store/store';
+import { useAthletes, useSessions } from '../../store/store';
+import { useTrainingStore } from '../../store';
+import { HOUR_SLOTS, toScheduledDate, formatDisplayDate } from '../scheduling/constants';
 
 // ============================================
 // TYPES
@@ -23,74 +25,30 @@ interface DayAgendaPanelProps {
     selectedDate: string; // YYYY-MM-DD
 }
 
-interface HourSlot {
-    time: string; // HH:MM
-    label: string; // "06:00"
-}
-
-// ============================================
-// CONSTANTS
-// ============================================
-
-const HOUR_SLOTS: HourSlot[] = Array.from({ length: 17 }, (_, i) => {
-    const hour = 6 + i; // 06:00 to 22:00
-    const time = `${hour.toString().padStart(2, '0')}:00`;
-    return { time, label: time };
-});
-
-// ============================================
-// HELPER: Format date for display
-// ============================================
-
-function formatDisplayDate(dateStr: string): string {
-    const date = new Date(dateStr + 'T00:00:00');
-    const options: Intl.DateTimeFormatOptions = {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric',
-    };
-    return date.toLocaleDateString('es-ES', options);
-}
-
 // ============================================
 // COMPONENT
 // ============================================
 
 export function DayAgendaPanel({ isOpen, onClose, selectedDate }: DayAgendaPanelProps) {
     const navigate = useNavigate();
-    const [searchParams, setSearchParams] = useSearchParams();
     const athletes = useAthletes();
+    const sessions = useSessions();
+    const addSession = useTrainingStore(state => state.addSession);
 
     // State
     const [selectedAthleteId, setSelectedAthleteId] = useState<string>('');
     const [selectedTime, setSelectedTime] = useState<string | null>(null);
+    const [pendingAction, setPendingAction] = useState<'reserve' | 'create' | null>(null);
+    const [showDuplicateWarning, setShowDuplicateWarning] = useState(false);
 
-    // Sync date to URL when panel opens
-    useEffect(() => {
-        if (isOpen && selectedDate) {
-            const params = new URLSearchParams(searchParams);
-            params.set('date', selectedDate);
-            if (selectedTime) {
-                params.set('time', selectedTime);
-            } else {
-                params.delete('time');
-            }
-            setSearchParams(params, { replace: true });
-        }
-    }, [isOpen, selectedDate, selectedTime, setSearchParams, searchParams]);
-
-    // Clear URL params when closing
+    // Reset state when panel closes
     useEffect(() => {
         if (!isOpen) {
-            const params = new URLSearchParams(searchParams);
-            params.delete('date');
-            params.delete('time');
-            if (params.toString() !== searchParams.toString()) {
-                setSearchParams(params, { replace: true });
-            }
+            setSelectedTime(null);
+            setPendingAction(null);
+            setShowDuplicateWarning(false);
         }
-    }, [isOpen, setSearchParams, searchParams]);
+    }, [isOpen]);
 
     // Active athletes only
     const activeAthletes = useMemo(() =>
@@ -98,53 +56,96 @@ export function DayAgendaPanel({ isOpen, onClose, selectedDate }: DayAgendaPanel
         [athletes]
     );
 
-    // Handle "Reservar" (STUB - Iteration 1)
-    const handleReservar = (time: string) => {
-        setSelectedTime(time);
+    // Sessions for this day
+    const daySessions = useMemo(() =>
+        sessions.filter(s => s.scheduledDate?.startsWith(selectedDate)),
+        [sessions, selectedDate]
+    );
 
-        // ITERATION 1: Stub - navigate with query params instead of creating session
-        const queryParams = new URLSearchParams({
-            date: selectedDate,
-            time: time,
-            action: 'reserve',
-        });
-        if (selectedAthleteId) {
-            queryParams.set('athleteId', selectedAthleteId);
+    // Check for duplicate session
+    const checkDuplicate = useCallback((time: string, athleteId: string): boolean => {
+        if (!athleteId) return false;
+        const scheduledPrefix = `${selectedDate}T${time}`;
+        return daySessions.some(s =>
+            s.athleteId === athleteId &&
+            s.scheduledDate?.startsWith(scheduledPrefix)
+        );
+    }, [daySessions, selectedDate]);
+
+    // Get athlete name
+    const getAthleteName = useCallback((athleteId: string): string => {
+        const athlete = athletes.find(a => a.id === athleteId);
+        return athlete?.name || 'Atleta';
+    }, [athletes]);
+
+    // Handle slot action (reserve or create)
+    const handleSlotAction = (time: string, action: 'reserve' | 'create') => {
+        if (!selectedAthleteId) {
+            // Require athlete selection
+            setSelectedTime(time);
+            return;
         }
 
-        // TODO: In Iteration 2, call sessionsSlice.addSession here
-        console.log('[DayAgendaPanel] Reservar stub:', {
-            date: selectedDate,
-            time,
-            athleteId: selectedAthleteId || 'none',
-        });
+        // Check for duplicate
+        if (checkDuplicate(time, selectedAthleteId)) {
+            setSelectedTime(time);
+            setPendingAction(action);
+            setShowDuplicateWarning(true);
+            return;
+        }
 
-        // Navigate to planning with session tab
-        navigate(`/planning?tab=sessions&${queryParams.toString()}`);
-        onClose();
+        // Proceed with action
+        executeAction(time, selectedAthleteId, action);
     };
 
-    // Handle "Crear sesión"
-    const handleCrearSesion = (time: string) => {
-        setSelectedTime(time);
+    // Execute the actual session creation
+    const executeAction = (time: string, athleteId: string, action: 'reserve' | 'create') => {
+        const scheduledDate = toScheduledDate(selectedDate, time);
+        const athleteName = getAthleteName(athleteId);
 
-        const queryParams = new URLSearchParams({
-            date: selectedDate,
-            time: time,
+        // Create session
+        const newSession = addSession({
+            athleteId,
+            name: action === 'reserve'
+                ? `Reserva - ${athleteName} - ${time}`
+                : `Sesión - ${athleteName} - ${time}`,
+            status: action === 'reserve' ? 'reserved' : 'planned',
+            scheduledDate,
+            exercises: [],
         });
-        if (selectedAthleteId) {
-            queryParams.set('athleteId', selectedAthleteId);
-        }
 
-        // Navigate to planning with session tab
-        navigate(`/planning?tab=sessions&${queryParams.toString()}`);
-        onClose();
+        // Reset state
+        setShowDuplicateWarning(false);
+        setPendingAction(null);
+        setSelectedTime(null);
+
+        if (action === 'create') {
+            // Navigate to planning with sessionId to highlight
+            onClose();
+            navigate(`/planning?tab=sessions&sessionId=${newSession.id}`);
+        } else {
+            // For reserve, just close and show feedback
+            onClose();
+        }
+    };
+
+    // Handle duplicate confirmation
+    const handleDuplicateConfirm = () => {
+        if (selectedTime && selectedAthleteId && pendingAction) {
+            executeAction(selectedTime, selectedAthleteId, pendingAction);
+        }
     };
 
     // Handle navigate to create athlete
     const handleCreateAthlete = () => {
         onClose();
         navigate('/athletes');
+    };
+
+    // Get sessions for a specific time slot
+    const getSlotSessions = (time: string) => {
+        const scheduledPrefix = `${selectedDate}T${time}`;
+        return daySessions.filter(s => s.scheduledDate?.startsWith(scheduledPrefix));
     };
 
     return (
@@ -158,7 +159,7 @@ export function DayAgendaPanel({ isOpen, onClose, selectedDate }: DayAgendaPanel
                 {/* Athlete Selector */}
                 <div className="space-y-2">
                     <label className="text-xs text-gray-400 uppercase tracking-wider">
-                        Atleta
+                        Atleta <span className="text-red-400">*</span>
                     </label>
 
                     {activeAthletes.length === 0 ? (
@@ -178,7 +179,7 @@ export function DayAgendaPanel({ isOpen, onClose, selectedDate }: DayAgendaPanel
                             onChange={(e) => setSelectedAthleteId(e.target.value)}
                             className="w-full px-3 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-lg text-white text-sm focus:outline-none focus:border-[#C5A572]"
                         >
-                            <option value="">Seleccionar atleta (opcional)</option>
+                            <option value="">Seleccionar atleta...</option>
                             {activeAthletes.map(athlete => (
                                 <option key={athlete.id} value={athlete.id}>
                                     {athlete.name}
@@ -188,6 +189,42 @@ export function DayAgendaPanel({ isOpen, onClose, selectedDate }: DayAgendaPanel
                     )}
                 </div>
 
+                {/* Validation message */}
+                {!selectedAthleteId && selectedTime && (
+                    <div className="p-3 rounded-lg bg-amber-900/20 border border-amber-700/50 text-amber-300 text-sm">
+                        ⚠️ Selecciona un atleta para continuar.
+                    </div>
+                )}
+
+                {/* Duplicate Warning */}
+                {showDuplicateWarning && (
+                    <div className="p-4 rounded-lg bg-amber-900/30 border border-amber-600 text-amber-200 text-sm space-y-3">
+                        <div className="flex items-start gap-2">
+                            <span className="text-amber-400">⚠️</span>
+                            <div>
+                                <p className="font-medium">Ya existe una sesión para este atleta a las {selectedTime}.</p>
+                                <p className="mt-1 text-amber-300/80">¿Deseas crear otra sesión de todos modos?</p>
+                            </div>
+                        </div>
+                        <div className="flex gap-2 justify-end">
+                            <AuraButton
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => setShowDuplicateWarning(false)}
+                            >
+                                Cancelar
+                            </AuraButton>
+                            <AuraButton
+                                variant="gold"
+                                size="sm"
+                                onClick={handleDuplicateConfirm}
+                            >
+                                Sí, continuar
+                            </AuraButton>
+                        </div>
+                    </div>
+                )}
+
                 {/* Hour Slots */}
                 <div className="space-y-2">
                     <label className="text-xs text-gray-400 uppercase tracking-wider">
@@ -195,60 +232,74 @@ export function DayAgendaPanel({ isOpen, onClose, selectedDate }: DayAgendaPanel
                     </label>
 
                     <div className="max-h-[400px] overflow-y-auto space-y-1 pr-2">
-                        {HOUR_SLOTS.map(slot => (
-                            <div
-                                key={slot.time}
-                                className={`
-                                    flex items-center justify-between p-3 rounded-lg border transition-all
-                                    ${selectedTime === slot.time
-                                        ? 'bg-[#C5A572]/10 border-[#C5A572]'
-                                        : 'bg-[#141414] border-[#2A2A2A] hover:border-[#444]'
-                                    }
-                                `}
-                            >
-                                <div className="flex items-center gap-3">
-                                    <span className="font-mono text-white text-sm w-14">
-                                        {slot.label}
-                                    </span>
-                                    {selectedTime === slot.time && (
-                                        <AuraBadge variant="gold">Seleccionado</AuraBadge>
-                                    )}
-                                </div>
+                        {HOUR_SLOTS.map(slot => {
+                            const slotSessions = getSlotSessions(slot.time);
+                            const hasSession = slotSessions.length > 0;
 
-                                <div className="flex items-center gap-2">
-                                    <AuraButton
-                                        variant="secondary"
-                                        size="sm"
-                                        onClick={() => handleReservar(slot.time)}
-                                    >
-                                        Reservar
-                                    </AuraButton>
-                                    <AuraButton
-                                        variant="gold"
-                                        size="sm"
-                                        onClick={() => handleCrearSesion(slot.time)}
-                                    >
-                                        Crear sesión
-                                    </AuraButton>
+                            return (
+                                <div
+                                    key={slot.time}
+                                    className={`
+                                        flex items-center justify-between p-3 rounded-lg border transition-all
+                                        ${selectedTime === slot.time
+                                            ? 'bg-[#C5A572]/10 border-[#C5A572]'
+                                            : hasSession
+                                                ? 'bg-[#1A1A1A] border-[#333]'
+                                                : 'bg-[#141414] border-[#2A2A2A] hover:border-[#444]'
+                                        }
+                                    `}
+                                >
+                                    <div className="flex items-center gap-3 flex-wrap">
+                                        <span className="font-mono text-white text-sm w-14">
+                                            {slot.label}
+                                        </span>
+                                        {slotSessions.map(s => (
+                                            <AuraBadge
+                                                key={s.id}
+                                                variant={s.status === 'reserved' ? 'default' : 'gold'}
+                                            >
+                                                {s.status === 'reserved' ? '📌' : '📋'} {getAthleteName(s.athleteId)}
+                                            </AuraBadge>
+                                        ))}
+                                    </div>
+
+                                    <div className="flex items-center gap-2">
+                                        <AuraButton
+                                            variant="secondary"
+                                            size="sm"
+                                            onClick={() => handleSlotAction(slot.time, 'reserve')}
+                                            disabled={!selectedAthleteId}
+                                        >
+                                            Reservar
+                                        </AuraButton>
+                                        <AuraButton
+                                            variant="gold"
+                                            size="sm"
+                                            onClick={() => handleSlotAction(slot.time, 'create')}
+                                            disabled={!selectedAthleteId}
+                                        >
+                                            Crear sesión
+                                        </AuraButton>
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 </div>
 
                 {/* Selected info */}
-                {(selectedAthleteId || selectedTime) && (
+                {selectedAthleteId && (
                     <div className="pt-3 border-t border-[#2A2A2A] text-xs text-gray-500">
-                        {selectedAthleteId && (
-                            <span>
-                                Atleta: {activeAthletes.find(a => a.id === selectedAthleteId)?.name}
-                            </span>
-                        )}
-                        {selectedTime && (
-                            <span className="ml-3">
-                                Hora: {selectedTime}
-                            </span>
-                        )}
+                        <AuraBadge variant="default">
+                            👤 {activeAthletes.find(a => a.id === selectedAthleteId)?.name}
+                        </AuraBadge>
+                    </div>
+                )}
+
+                {/* Day summary */}
+                {daySessions.length > 0 && (
+                    <div className="pt-3 border-t border-[#2A2A2A] text-xs text-gray-500">
+                        {daySessions.length} sesión(es) programada(s) para este día
                     </div>
                 )}
             </div>

@@ -25,6 +25,7 @@ export interface SessionCardProps {
 // ============================================
 
 export const SESSION_STATUS_CONFIG = {
+    reserved: { label: 'Reserved', variant: 'default' as const },
     planned: { label: 'Planned', variant: 'default' as const },
     in_progress: { label: 'Live', variant: 'gold' as const },
     completed: { label: 'Done', variant: 'success' as const },

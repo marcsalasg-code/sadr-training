@@ -31,6 +31,7 @@ interface SessionBadgeProps {
 
 function SessionBadge({ session, onClick }: SessionBadgeProps) {
     const statusColors = {
+        reserved: 'bg-purple-900/20 border-purple-500/50 text-purple-400 hover:bg-purple-900/30',
         planned: 'bg-[#C5A572]/20 border-[#C5A572] text-[#C5A572] hover:bg-[#C5A572]/30',
         in_progress: 'bg-[#C5A572] border-[#C5A572] text-black animate-pulse',
         completed: 'bg-green-900/30 border-green-600/50 text-green-400',

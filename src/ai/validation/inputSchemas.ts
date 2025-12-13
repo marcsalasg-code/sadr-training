@@ -37,7 +37,7 @@ const ExerciseSchema = z.object({
 const SessionSchema = z.object({
     id: UUIDSchema,
     athleteId: UUIDSchema,
-    status: z.enum(['planned', 'in_progress', 'completed', 'cancelled']),
+    status: z.enum(['reserved', 'planned', 'in_progress', 'completed', 'cancelled']),
     exercises: z.array(z.any()),
 }).passthrough();
 
