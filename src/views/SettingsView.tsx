@@ -15,6 +15,7 @@ import {
 import { useSettings, useTrainingStore } from '../store/store';
 import { AIEnginePanel, SystemStatsPanel, FeedbackPanel, SimulatorPanel, CategoryManager } from '../components/lab';
 import { OneRMAnchorManager } from '../components/common/OneRMAnchorManager';
+import { useIsAthlete } from '../hooks';
 
 export function SettingsView() {
     const settings = useSettings();
@@ -28,6 +29,9 @@ export function SettingsView() {
     const [importSuccess, setImportSuccess] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState<'training' | 'categories' | 'interface' | 'data' | 'advanced'>('training');
     const [advancedSubTab, setAdvancedSubTab] = useState<'experimental' | 'ai' | 'anchors' | 'categories' | 'feedback' | 'simulator' | 'system'>('experimental');
+
+    // Phase 15C: Role-based tab visibility
+    const isAthlete = useIsAthlete();
 
     // TrainingConfig
     const trainingConfig = useTrainingStore((s) => s.trainingConfig);
@@ -92,13 +96,16 @@ export function SettingsView() {
         setShowImportConfirmModal(false);
     };
 
-    const tabs = [
+    const tabs: Array<{ id: 'training' | 'categories' | 'interface' | 'data' | 'advanced'; label: string; icon: string }> = [
         { id: 'training', label: 'Training', icon: '🏋️' },
         { id: 'categories', label: 'Categorías', icon: '🏷️' },
         { id: 'interface', label: 'Interface', icon: '🎨' },
         { id: 'data', label: 'Data', icon: '💾' },
         { id: 'advanced', label: 'Avanzado', icon: '🔬' },
-    ] as const;
+    ];
+
+    // Phase 15C: Filter tabs based on role
+    const visibleTabs = isAthlete ? tabs.filter(t => t.id !== 'advanced') : tabs;
 
     const advancedTabs = [
         { id: 'experimental', label: 'Experimental', icon: '🧪' },
@@ -119,7 +126,7 @@ export function SettingsView() {
 
             {/* Tabs */}
             <div className="flex gap-2 border-b border-[#2A2A2A] pb-2">
-                {tabs.map(tab => (
+                {visibleTabs.map(tab => (
                     <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id)}

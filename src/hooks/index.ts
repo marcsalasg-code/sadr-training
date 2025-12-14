@@ -12,3 +12,9 @@ export { useExercisePicker, type UseExercisePickerOptions, type UseExercisePicke
 export { useOneRMAnchorManager, type UseOneRMAnchorManagerReturn, ONE_RM_GROUPS, BODY_REGIONS, type AnchorManagerTab } from './useOneRMAnchorManager';
 export { useWeeklySchedule, type UseWeeklyScheduleReturn, type WeekDay, type SessionSummary } from './useWeeklySchedule';
 export { useNavigation, type NavItemRuntime, type NavGroupRuntime } from './useNavigation';
+
+// Phase 15C: Role-based visibility hooks
+export { useCurrentUser, useIsCoach, useIsAthlete, useAthleteId, useIsAuthenticated } from './useCurrentUser';
+export { useVisibleSessions, useMyActiveSession, useMyUpcomingSessions, useMyCompletedSessionsCount } from './useVisibleSessions';
+export { useVisibleAthletes, useMyProfile } from './useVisibleAthletes';
+

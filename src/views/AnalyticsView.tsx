@@ -11,6 +11,7 @@ import { PageContainer } from '../components/layout';
 import { Select, Tabs, Badge } from '../components/ui';
 import { AuraCard } from '../components/ui/aura';
 import { useSessions, useAthletes, useExercises, useTrainingPlans } from '../store/store';
+import { useIsAthlete, useAthleteId, useVisibleSessions, useVisibleAthletes } from '../hooks';
 import { getSessionLog } from '../utils/sessionLog';
 import { getWeeklyIntensityFatigue } from '../core/analysis/metrics';
 import {
@@ -28,20 +29,37 @@ export function AnalyticsView() {
     const exercises = useExercises();
     const trainingPlans = useTrainingPlans();
 
-    const initialAthlete = searchParams.get('athleteId') || 'all';
+    // Phase 15C: Role-based visibility
+    const isAthlete = useIsAthlete();
+    const athleteIdFromAuth = useAthleteId();
+    const visibleSessions = useVisibleSessions();
+    const visibleAthletes = useVisibleAthletes();
+
+    // For athlete: force their athleteId, for coach: allow selection
+    const initialAthlete = isAthlete
+        ? (athleteIdFromAuth || 'all')
+        : (searchParams.get('athleteId') || 'all');
     const initialRange = searchParams.get('range') || 'month';
 
     const [selectedAthlete, setSelectedAthlete] = useState<string>(initialAthlete);
     const [timeRange, setTimeRange] = useState<string>(initialRange);
 
+    // Lock athlete selector for athlete role
+    useEffect(() => {
+        if (isAthlete && athleteIdFromAuth) {
+            setSelectedAthlete(athleteIdFromAuth);
+        }
+    }, [isAthlete, athleteIdFromAuth]);
+
     useEffect(() => {
         const athleteParam = searchParams.get('athleteId');
-        if (athleteParam && athleteParam !== selectedAthlete) {
+        if (!isAthlete && athleteParam && athleteParam !== selectedAthlete) {
             setSelectedAthlete(athleteParam);
         }
-    }, [searchParams, selectedAthlete]);
+    }, [searchParams, selectedAthlete, isAthlete]);
 
-    // Filter sessions by time range
+    // Filter sessions by time range - use visible sessions for athletes
+    const baseSessions = isAthlete ? visibleSessions : sessions;
     const filteredSessions = useMemo(() => {
         let cutoff = new Date();
         if (timeRange === 'week') cutoff.setDate(cutoff.getDate() - 7);
@@ -49,11 +67,11 @@ export function AnalyticsView() {
         else if (timeRange === '3months') cutoff.setMonth(cutoff.getMonth() - 3);
         else cutoff = new Date(0);
 
-        return sessions
+        return baseSessions
             .filter(s => s.status === 'completed')
             .filter(s => selectedAthlete === 'all' || s.athleteId === selectedAthlete)
             .filter(s => s.completedAt && new Date(s.completedAt) >= cutoff);
-    }, [sessions, selectedAthlete, timeRange]);
+    }, [baseSessions, selectedAthlete, timeRange]);
 
     // Main metrics
     const metrics = useMemo(() => {
@@ -103,10 +121,11 @@ export function AnalyticsView() {
             .slice(0, 5);
     }, [filteredSessions, exercises]);
 
-    // 1RM Data
+    // 1RM Data - use visibleAthletes for role filtering
     const oneRMData = useMemo(() => {
         const data: Array<{ name: string; maxValue: number }> = [];
-        athletes.forEach(athlete => {
+        const athletesToCheck = isAthlete ? visibleAthletes : athletes;
+        athletesToCheck.forEach(athlete => {
             if (athlete.oneRMRecords) {
                 Object.entries(athlete.oneRMRecords).forEach(([exId, record]) => {
                     const exercise = exercises.find(e => e.id === exId);
@@ -122,7 +141,7 @@ export function AnalyticsView() {
             }
         });
         return data.sort((a, b) => b.maxValue - a.maxValue).slice(0, 5);
-    }, [athletes, exercises]);
+    }, [isAthlete, visibleAthletes, athletes, exercises]);
 
     // Intensity data
     const intensityData = useMemo(() => {
@@ -291,15 +310,18 @@ export function AnalyticsView() {
                     ]}
                     className="w-48"
                 />
-                <Select
-                    value={selectedAthlete}
-                    onChange={(e) => setSelectedAthlete(e.target.value)}
-                    options={[
-                        { value: 'all', label: 'Todos los atletas' },
-                        ...athletes.map(a => ({ value: a.id, label: a.name })),
-                    ]}
-                    className="w-48"
-                />
+                {/* Phase 15C: Only show athlete selector for coach */}
+                {!isAthlete && (
+                    <Select
+                        value={selectedAthlete}
+                        onChange={(e) => setSelectedAthlete(e.target.value)}
+                        options={[
+                            { value: 'all', label: 'Todos los atletas' },
+                            ...athletes.map(a => ({ value: a.id, label: a.name })),
+                        ]}
+                        className="w-48"
+                    />
+                )}
             </div>
             <Tabs tabs={tabs} />
         </PageContainer>
