@@ -154,6 +154,7 @@ export function DayAgendaPanel({ isOpen, onClose, selectedDate }: DayAgendaPanel
             onClose={onClose}
             title={`📅 ${formatDisplayDate(selectedDate)}`}
             size="lg"
+            fullScreenOnMobile
         >
             <div className="space-y-4">
                 {/* Athlete Selector */}
@@ -226,12 +227,12 @@ export function DayAgendaPanel({ isOpen, onClose, selectedDate }: DayAgendaPanel
                 )}
 
                 {/* Hour Slots */}
-                <div className="space-y-2">
-                    <label className="text-xs text-gray-400 uppercase tracking-wider">
+                <div className="space-y-2 flex-1 flex flex-col min-h-0">
+                    <label className="text-xs text-gray-400 uppercase tracking-wider shrink-0">
                         Horario
                     </label>
 
-                    <div className="max-h-[400px] overflow-y-auto space-y-1 pr-2">
+                    <div className="flex-1 overflow-y-auto space-y-1 pr-2 md:max-h-[400px] md:flex-none">
                         {HOUR_SLOTS.map(slot => {
                             const slotSessions = getSlotSessions(slot.time);
                             const hasSession = slotSessions.length > 0;
@@ -240,7 +241,8 @@ export function DayAgendaPanel({ isOpen, onClose, selectedDate }: DayAgendaPanel
                                 <div
                                     key={slot.time}
                                     className={`
-                                        flex items-center justify-between p-3 rounded-lg border transition-all
+                                        flex flex-col gap-2 p-3 rounded-lg border transition-all
+                                        md:flex-row md:items-center md:justify-between
                                         ${selectedTime === slot.time
                                             ? 'bg-[#C5A572]/10 border-[#C5A572]'
                                             : hasSession
@@ -263,12 +265,13 @@ export function DayAgendaPanel({ isOpen, onClose, selectedDate }: DayAgendaPanel
                                         ))}
                                     </div>
 
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-2 w-full md:w-auto">
                                         <AuraButton
                                             variant="secondary"
                                             size="sm"
                                             onClick={() => handleSlotAction(slot.time, 'reserve')}
                                             disabled={!selectedAthleteId}
+                                            className="flex-1 md:flex-none"
                                         >
                                             Reservar
                                         </AuraButton>
@@ -277,6 +280,7 @@ export function DayAgendaPanel({ isOpen, onClose, selectedDate }: DayAgendaPanel
                                             size="sm"
                                             onClick={() => handleSlotAction(slot.time, 'create')}
                                             disabled={!selectedAthleteId}
+                                            className="flex-1 md:flex-none"
                                         >
                                             Crear sesión
                                         </AuraButton>

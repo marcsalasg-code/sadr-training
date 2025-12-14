@@ -12,6 +12,7 @@ interface ModalProps {
     children: ReactNode;
     footer?: ReactNode;
     size?: 'sm' | 'md' | 'lg';
+    fullScreenOnMobile?: boolean;
 }
 
 const sizeClasses = {
@@ -20,7 +21,7 @@ const sizeClasses = {
     lg: 'max-w-2xl',
 };
 
-export function Modal({ isOpen, onClose, title, children, footer, size = 'md' }: ModalProps) {
+export function Modal({ isOpen, onClose, title, children, footer, size = 'md', fullScreenOnMobile = false }: ModalProps) {
     // Cerrar con Escape
     useEffect(() => {
         const handleEscape = (e: KeyboardEvent) => {
@@ -40,8 +41,17 @@ export function Modal({ isOpen, onClose, title, children, footer, size = 'md' }:
 
     if (!isOpen) return null;
 
+    // Compute modal container classes
+    const modalContainerClasses = fullScreenOnMobile
+        ? `relative w-full h-[100dvh] rounded-none flex flex-col md:h-auto md:max-h-[90vh] md:${sizeClasses[size]} md:rounded-xl`
+        : `relative w-full ${sizeClasses[size]} bg-[var(--color-bg-card)] border border-[var(--color-border-default)] rounded-xl shadow-2xl`;
+
+    const wrapperClasses = fullScreenOnMobile
+        ? 'fixed inset-0 z-50 flex items-end justify-center md:items-center md:p-4'
+        : 'fixed inset-0 z-50 flex items-center justify-center p-4';
+
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className={wrapperClasses}>
             {/* Backdrop */}
             <div
                 className="absolute inset-0 bg-black/60 backdrop-blur-sm"
@@ -50,11 +60,11 @@ export function Modal({ isOpen, onClose, title, children, footer, size = 'md' }:
 
             {/* Modal */}
             <div
-                className={`relative w-full ${sizeClasses[size]} bg-[var(--color-bg-card)] border border-[var(--color-border-default)] rounded-xl shadow-2xl`}
+                className={`${modalContainerClasses} bg-[var(--color-bg-card)] border border-[var(--color-border-default)] shadow-2xl`}
                 onClick={(e) => e.stopPropagation()}
             >
-                {/* Header */}
-                <div className="flex items-center justify-between p-6 border-b border-[var(--color-border-default)]">
+                {/* Header - sticky on mobile */}
+                <div className={`flex items-center justify-between p-4 md:p-6 border-b border-[var(--color-border-default)] ${fullScreenOnMobile ? 'sticky top-0 z-10 bg-[var(--color-bg-card)]' : ''}`}>
                     <h2 className="text-lg font-semibold text-[var(--color-text-primary)]">
                         {title}
                     </h2>
@@ -69,13 +79,13 @@ export function Modal({ isOpen, onClose, title, children, footer, size = 'md' }:
                 </div>
 
                 {/* Content */}
-                <div className="p-6 max-h-[60vh] overflow-y-auto">
+                <div className={`p-4 md:p-6 overflow-y-auto ${fullScreenOnMobile ? 'flex-1' : 'max-h-[60vh]'}`}>
                     {children}
                 </div>
 
                 {/* Footer */}
                 {footer && (
-                    <div className="flex items-center justify-end gap-3 p-6 border-t border-[var(--color-border-default)]">
+                    <div className="flex items-center justify-end gap-3 p-4 md:p-6 border-t border-[var(--color-border-default)]">
                         {footer}
                     </div>
                 )}
