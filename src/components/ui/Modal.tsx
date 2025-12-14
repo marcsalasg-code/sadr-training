@@ -1,8 +1,12 @@
 /**
  * Modal - Componente de modal/diálogo
+ * 
+ * HOTFIX: Uses createPortal to render to document.body, escaping
+ * any stacking contexts (transform, z-index, overflow) from parent components.
  */
 
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { Button } from './Button';
 
 interface ModalProps {
@@ -22,23 +26,30 @@ const sizeClasses = {
 };
 
 export function Modal({ isOpen, onClose, title, children, footer, size = 'md', fullScreenOnMobile = false }: ModalProps) {
-    // Cerrar con Escape
+    // Store previous overflow value for proper cleanup
+    const previousOverflowRef = useRef<string>('');
+
+    // Handle ESC key and scroll lock
     useEffect(() => {
         const handleEscape = (e: KeyboardEvent) => {
             if (e.key === 'Escape') onClose();
         };
 
         if (isOpen) {
-            document.addEventListener('keydown', handleEscape);
+            // Save current overflow and lock scroll
+            previousOverflowRef.current = document.body.style.overflow;
             document.body.style.overflow = 'hidden';
+            document.addEventListener('keydown', handleEscape);
         }
 
         return () => {
             document.removeEventListener('keydown', handleEscape);
-            document.body.style.overflow = '';
+            // Restore previous overflow value
+            document.body.style.overflow = previousOverflowRef.current;
         };
     }, [isOpen, onClose]);
 
+    // Don't render anything if closed
     if (!isOpen) return null;
 
     // Compute modal container classes
@@ -46,11 +57,12 @@ export function Modal({ isOpen, onClose, title, children, footer, size = 'md', f
         ? `relative w-full h-[100dvh] rounded-none flex flex-col md:h-auto md:max-h-[90vh] md:${sizeClasses[size]} md:rounded-xl`
         : `relative w-full ${sizeClasses[size]} bg-[var(--color-bg-card)] border border-[var(--color-border-default)] rounded-xl shadow-2xl`;
 
+    // Use z-[100] to ensure modal is above header (z-50) and sidebar
     const wrapperClasses = fullScreenOnMobile
-        ? 'fixed inset-0 z-50 flex items-end justify-center md:items-center md:p-4'
-        : 'fixed inset-0 z-50 flex items-center justify-center p-4';
+        ? 'fixed inset-0 z-[100] flex items-end justify-center md:items-center md:p-4'
+        : 'fixed inset-0 z-[100] flex items-center justify-center p-4';
 
-    return (
+    const modalContent = (
         <div className={wrapperClasses}>
             {/* Backdrop */}
             <div
@@ -92,6 +104,12 @@ export function Modal({ isOpen, onClose, title, children, footer, size = 'md', f
             </div>
         </div>
     );
+
+    // Portal to document.body to escape all stacking contexts
+    // Defensive check for SSR (though this is a Vite SPA)
+    if (typeof document === 'undefined') return null;
+
+    return createPortal(modalContent, document.body);
 }
 
 // Modal de confirmación predefinido
