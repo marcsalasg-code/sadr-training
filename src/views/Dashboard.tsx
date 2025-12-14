@@ -51,7 +51,7 @@ export function Dashboard() {
     const aiInsight = useAIInsight(weeklyAdherence, !!todayPlan, hasSessionToday);
 
     return (
-        <div className="p-8 space-y-8 max-w-6xl mx-auto">
+        <div className="p-4 md:p-8 space-y-6 md:space-y-8 max-w-6xl mx-auto">
             {/* AI Insight Banner */}
             {aiInsight && (
                 <AIInsightBanner

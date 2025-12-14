@@ -85,6 +85,7 @@ function DayCell({ day, onStartSession, onCreateSession, onDayClick }: DayCellPr
         <div
             onClick={handleCellClick}
             className={`
+                snap-start md:snap-align-none
                 relative flex flex-col min-h-[140px] p-3 rounded-xl border transition-all cursor-pointer
                 ${day.isToday
                     ? 'bg-gradient-to-b from-[#C5A572]/10 to-[#0A0A0A] border-[#C5A572] shadow-lg shadow-[#C5A572]/10'
@@ -248,8 +249,19 @@ export function WeeklyScheduleWidget() {
                 </div>
             </div>
 
-            {/* Week Grid - Full Width */}
-            <div className="grid grid-cols-7 gap-3">
+            {/* Week Grid - Snap scroll on mobile, 7-col grid on desktop */}
+            <div
+                className="
+                    grid gap-2
+                    overflow-x-auto pb-2
+                    snap-x snap-mandatory
+                    grid-flow-col auto-cols-[minmax(200px,1fr)]
+                    md:overflow-visible md:pb-0
+                    md:snap-none md:grid-flow-row md:auto-cols-auto md:grid-cols-7 md:gap-3
+                    -mx-4 px-4 md:mx-0 md:px-0
+                "
+                aria-label="Calendario semanal"
+            >
                 {weekDays.map(day => (
                     <DayCell
                         key={day.date}
