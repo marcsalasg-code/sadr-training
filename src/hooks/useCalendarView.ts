@@ -54,16 +54,14 @@ export interface UseCalendarViewReturn {
     athleteOptionsForCreate: { value: string; label: string }[];
     templateOptions: { value: string; label: string }[];
 
-    // Day expansion (agenda)
-    expandedDate: Date | null;
-    setExpandedDate: (date: Date | null) => void;
+    // Day click handler
     handleDayClick: (date: Date) => void;
 
     // Modal state
     selectedDate: Date | null;
+    setSelectedDate: (date: Date | null) => void;
 
     // Handlers
-    handleOpenCreateModal: (date: Date) => void;
     handleCloseModal: () => void;
     getSessionAction: (session: WorkoutSession) => { label: string; onClick: () => void };
 
@@ -130,11 +128,8 @@ export function useCalendarView(): UseCalendarViewReturn {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [selectedAthleteId, setSelectedAthleteId] = useState<string>('all');
 
-    // Modal state
+    // Modal state - Phase 12D: unified for DayAgendaPanel
     const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-
-    // Day expansion state
-    const [expandedDate, setExpandedDate] = useState<Date | null>(null);
 
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
@@ -219,20 +214,17 @@ export function useCalendarView(): UseCalendarViewReturn {
         ...templates.map(t => ({ value: t.id, label: t.name }))
     ], [templates]);
 
-    // Day click handler
+    // Phase 12D: Day click handler - opens DayAgendaPanel modal directly
     const handleDayClick = useCallback((date: Date) => {
-        if (expandedDate && expandedDate.getTime() === date.getTime()) {
-            setExpandedDate(null);
+        // Toggle: if same date clicked, close; otherwise open
+        if (selectedDate && selectedDate.getTime() === date.getTime()) {
+            setSelectedDate(null);
         } else {
-            setExpandedDate(date);
+            setSelectedDate(date);
         }
-    }, [expandedDate]);
+    }, [selectedDate]);
 
-    // Modal handlers - Phase 12C: simplified, no inline form state
-    const handleOpenCreateModal = useCallback((date: Date) => {
-        setSelectedDate(date);
-    }, []);
-
+    // Modal handlers - Phase 12C/12D: simplified
     const handleCloseModal = useCallback(() => {
         setSelectedDate(null);
     }, []);
@@ -289,16 +281,14 @@ export function useCalendarView(): UseCalendarViewReturn {
         athleteOptionsForCreate,
         templateOptions,
 
-        // Day expansion
-        expandedDate,
-        setExpandedDate,
+        // Day click
         handleDayClick,
 
         // Modal state
         selectedDate,
+        setSelectedDate,
 
         // Handlers
-        handleOpenCreateModal,
         handleCloseModal,
         getSessionAction,
 

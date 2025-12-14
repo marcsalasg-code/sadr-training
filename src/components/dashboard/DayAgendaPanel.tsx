@@ -23,13 +23,14 @@ interface DayAgendaPanelProps {
     isOpen: boolean;
     onClose: () => void;
     selectedDate: string; // YYYY-MM-DD
+    initialAthleteId?: string; // Phase 12D: Pre-select athlete from Calendar filter
 }
 
 // ============================================
 // COMPONENT
 // ============================================
 
-export function DayAgendaPanel({ isOpen, onClose, selectedDate }: DayAgendaPanelProps) {
+export function DayAgendaPanel({ isOpen, onClose, selectedDate, initialAthleteId }: DayAgendaPanelProps) {
     const navigate = useNavigate();
     const athletes = useAthletes();
     const sessions = useSessions();
@@ -49,6 +50,13 @@ export function DayAgendaPanel({ isOpen, onClose, selectedDate }: DayAgendaPanel
             setShowDuplicateWarning(false);
         }
     }, [isOpen]);
+
+    // Phase 12D: Pre-select athlete from Calendar filter when opening
+    useEffect(() => {
+        if (isOpen && initialAthleteId && !selectedAthleteId) {
+            setSelectedAthleteId(initialAthleteId);
+        }
+    }, [isOpen, initialAthleteId, selectedAthleteId]);
 
     // Active athletes only
     const activeAthletes = useMemo(() =>
@@ -256,12 +264,22 @@ export function DayAgendaPanel({ isOpen, onClose, selectedDate }: DayAgendaPanel
                                             {slot.label}
                                         </span>
                                         {slotSessions.map(s => (
-                                            <AuraBadge
+                                            <button
                                                 key={s.id}
-                                                variant={s.status === 'reserved' ? 'default' : 'gold'}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    onClose();
+                                                    navigate(`/planning?tab=sessions&sessionId=${s.id}&mode=edit`);
+                                                }}
+                                                className="cursor-pointer hover:scale-105 transition-transform"
+                                                title={`Editar: ${s.name}`}
                                             >
-                                                {s.status === 'reserved' ? '📌' : '📋'} {getAthleteName(s.athleteId)}
-                                            </AuraBadge>
+                                                <AuraBadge
+                                                    variant={s.status === 'reserved' ? 'default' : 'gold'}
+                                                >
+                                                    {s.status === 'reserved' ? '📌' : '📋'} {getAthleteName(s.athleteId)}
+                                                </AuraBadge>
+                                            </button>
                                         ))}
                                     </div>
 

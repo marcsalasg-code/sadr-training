@@ -7,20 +7,13 @@
  */
 
 import { useNavigate } from 'react-router-dom';
-import { Modal, Input, Select } from '../components/ui';
+import { Select } from '../components/ui';
 import {
     AuraSection,
-    AuraPanel,
     AuraButton,
-    AuraBadge,
-    AuraListItem,
-    AuraDivider,
-    AuraEmptyState,
 } from '../components/ui/aura';
-import { DayAgenda } from '../components/calendar';
+import { DayAgendaPanel } from '../components/dashboard';
 import { useCalendarView } from '../hooks';
-import { getDayPlanFor } from '../utils';
-import { useTrainingStore } from '../store/store';
 
 export function CalendarView() {
 
@@ -42,23 +35,13 @@ export function CalendarView() {
         selectedAthleteId,
         setSelectedAthleteId,
         athleteOptions,
-        athleteOptionsForCreate,
-        templateOptions,
 
-        // Day expansion
-        expandedDate,
-        setExpandedDate,
+        // Day click
         handleDayClick,
 
-        // Modal state
+        // Modal state - Phase 12D: unified for DayAgendaPanel
         selectedDate,
-        // showCreateForm & newSession state removed (Phase 12C)
-
-        // Handlers
-        handleOpenCreateModal,
-        handleCloseModal,
-        // handleCreateSession removed (Phase 12C)
-        getSessionAction,
+        setSelectedDate,
 
         // Training plan context
         activePlan,
@@ -69,11 +52,8 @@ export function CalendarView() {
         // Utilities
         isToday,
         formatDateKey,
-        formatModalDate,
-        selectedDaySessions,
         sessionTypeIcons,
-        statusConfig,
-        getAthlete,
+        getSessionAction,
     } = useCalendarView();
 
     return (
@@ -280,125 +260,13 @@ export function CalendarView() {
                 </div>
             </div>
 
-            {/* Day Agenda (expandible al hacer clic en un día) */}
-            {expandedDate && (
-                <DayAgenda
-                    date={expandedDate}
-                    sessions={sessionsByDate[formatDateKey(expandedDate)] || []}
-                    onClose={() => setExpandedDate(null)}
-                    onCreateSession={() => handleOpenCreateModal(expandedDate!)}
-                    onGoToSession={(sessionId) => getSessionAction({ id: sessionId } as any).onClick()}
-                />
-            )}
-
-            {/* Day Modal */}
-            <Modal
+            {/* Phase 12D: Unified DayAgendaPanel (replaces legacy DayAgenda inline + Modal) */}
+            <DayAgendaPanel
                 isOpen={!!selectedDate}
-                onClose={handleCloseModal}
-                title={selectedDate ? formatModalDate(selectedDate) : ''}
-                size="md"
-            >
-                <div className="space-y-4">
-                    {/* Quick Start from Plan (if training day with no sessions) */}
-                    {selectedDate && activePlan && getDayPlanFor(selectedDate, activePlan) && selectedDaySessions.length === 0 && (
-                        <div className="p-3 rounded-lg bg-[var(--color-accent-gold)]/10 border border-[var(--color-accent-gold)]/30">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-sm font-medium text-[var(--color-accent-gold)]">
-                                        {sessionTypeIcons[getDayPlanFor(selectedDate, activePlan)?.sessionType || ''] || '💪'} Training Day
-                                    </p>
-                                    <p className="text-xs text-gray-400">
-                                        {getDayPlanFor(selectedDate, activePlan)?.sessionType} • {getDayPlanFor(selectedDate, activePlan)?.intensity || 'moderate'}
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Sessions List */}
-                    {selectedDaySessions.length > 0 ? (
-                        <div className="space-y-2">
-                            <h4 className="text-xs font-mono text-gray-500 uppercase tracking-widest">
-                                Sessions ({selectedDaySessions.length})
-                            </h4>
-                            <div className="space-y-2">
-                                {selectedDaySessions.map(session => {
-                                    const athlete = getAthlete(session.athleteId);
-                                    const action = getSessionAction(session);
-                                    const status = statusConfig[session.status];
-
-                                    return (
-                                        <AuraListItem
-                                            key={session.id}
-                                            title={session.name}
-                                            subtitle={selectedAthleteId === 'all' && athlete ? athlete.name : undefined}
-                                            rightContent={
-                                                <div className="flex items-center gap-2">
-                                                    <AuraBadge variant={status.variant} size="sm">
-                                                        {status.label}
-                                                    </AuraBadge>
-                                                    {(session.status === 'planned' || session.status === 'reserved') && (
-                                                        <AuraButton
-                                                            size="sm"
-                                                            variant="secondary"
-                                                            onClick={() => navigate(`/planning?tab=sessions&sessionId=${session.id}&mode=edit`)}
-                                                        >
-                                                            ✏️ Editar
-                                                        </AuraButton>
-                                                    )}
-                                                    <AuraButton size="sm" onClick={action.onClick}>
-                                                        {action.label}
-                                                    </AuraButton>
-                                                </div>
-                                            }
-                                        />
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    ) : (
-                        <AuraEmptyState
-                            icon="📅"
-                            title="No sessions scheduled"
-                            description="Click below to schedule a session for this day."
-                            size="sm"
-                        />
-                    )}
-
-                    <AuraDivider />
-
-                    {/* Phase 12C: Canonical "Planificar Sesión" Button */}
-                    <AuraButton
-                        variant="gold"
-                        fullWidth
-                        icon={
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                            </svg>
-                        }
-                        onClick={() => {
-                            if (!selectedAthleteId || selectedAthleteId === 'all') {
-                                alert('Selecciona un atleta para planificar una sesión.');
-                                return;
-                            }
-                            if (selectedDate) {
-                                const { addSession } = useTrainingStore.getState();
-                                const dateKey = formatDateKey(selectedDate);
-                                const newSession = addSession({
-                                    name: `Sesión ${dateKey}`,
-                                    athleteId: selectedAthleteId,
-                                    scheduledDate: dateKey,
-                                    status: 'planned',
-                                    exercises: [],
-                                });
-                                navigate(`/planning?tab=sessions&sessionId=${newSession.id}&mode=edit`);
-                            }
-                        }}
-                    >
-                        Planificar sesión
-                    </AuraButton>
-                </div>
-            </Modal>
+                onClose={() => setSelectedDate(null)}
+                selectedDate={selectedDate ? formatDateKey(selectedDate) : ''}
+                initialAthleteId={selectedAthleteId !== 'all' ? selectedAthleteId : undefined}
+            />
         </div>
     );
 }
