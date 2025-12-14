@@ -6,4 +6,5 @@ export { PageContainer } from './PageContainer';
 export { AppShell } from './AppShell';
 export { BrowserTopBar } from './BrowserTopBar';
 export { SidebarNav } from './SidebarNav';
+export { SidebarNavContent } from './SidebarNavContent';
 export { ContentArea } from './ContentArea';

@@ -11,4 +11,4 @@ export { useSetRow, type UseSetRowOptions, type UseSetRowReturn } from './useSet
 export { useExercisePicker, type UseExercisePickerOptions, type UseExercisePickerReturn } from './useExercisePicker';
 export { useOneRMAnchorManager, type UseOneRMAnchorManagerReturn, ONE_RM_GROUPS, BODY_REGIONS, type AnchorManagerTab } from './useOneRMAnchorManager';
 export { useWeeklySchedule, type UseWeeklyScheduleReturn, type WeekDay, type SessionSummary } from './useWeeklySchedule';
-
+export { useNavigation, type NavItemRuntime, type NavGroupRuntime } from './useNavigation';
