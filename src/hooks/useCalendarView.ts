@@ -61,18 +61,10 @@ export interface UseCalendarViewReturn {
 
     // Modal state
     selectedDate: Date | null;
-    showCreateForm: boolean;
-    newSessionName: string;
-    newSessionAthleteId: string;
-    newSessionTemplateId: string;
-    setNewSessionName: (name: string) => void;
-    setNewSessionAthleteId: (id: string) => void;
-    setNewSessionTemplateId: (id: string) => void;
 
     // Handlers
-    handleOpenCreateModal: (date: Date, hour?: number) => void;
+    handleOpenCreateModal: (date: Date) => void;
     handleCloseModal: () => void;
-    handleCreateSession: () => void;
     getSessionAction: (session: WorkoutSession) => { label: string; onClick: () => void };
 
     // Training plan context
@@ -131,7 +123,7 @@ export function useCalendarView(): UseCalendarViewReturn {
     const sessions = useSessions();
     const athletes = useAthletes();
     const templates = useTemplates();
-    const { addSession, getAthlete } = useTrainingStore();
+    const { getAthlete } = useTrainingStore();
     const { activePlan, weeklyAdherence } = useTrainingPlan();
 
     // Calendar navigation state
@@ -140,10 +132,6 @@ export function useCalendarView(): UseCalendarViewReturn {
 
     // Modal state
     const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-    const [showCreateForm, setShowCreateForm] = useState(false);
-    const [newSessionName, setNewSessionName] = useState('');
-    const [newSessionAthleteId, setNewSessionAthleteId] = useState('');
-    const [newSessionTemplateId, setNewSessionTemplateId] = useState('');
 
     // Day expansion state
     const [expandedDate, setExpandedDate] = useState<Date | null>(null);
@@ -240,53 +228,16 @@ export function useCalendarView(): UseCalendarViewReturn {
         }
     }, [expandedDate]);
 
-    // Modal handlers
-    const handleOpenCreateModal = useCallback((date: Date, _hour?: number) => {
+    // Modal handlers - Phase 12C: simplified, no inline form state
+    const handleOpenCreateModal = useCallback((date: Date) => {
         setSelectedDate(date);
-        setShowCreateForm(true);
-        setNewSessionName('');
-        setNewSessionAthleteId(selectedAthleteId !== 'all' ? selectedAthleteId : '');
-        setNewSessionTemplateId('');
-    }, [selectedAthleteId]);
+    }, []);
 
     const handleCloseModal = useCallback(() => {
         setSelectedDate(null);
-        setShowCreateForm(false);
     }, []);
 
-    // Create session handler
-    const handleCreateSession = useCallback(() => {
-        if (!newSessionName.trim() || !newSessionAthleteId || !selectedDate) return;
-
-        const selectedTemplate = templates.find(t => t.id === newSessionTemplateId);
-
-        addSession({
-            name: newSessionName.trim(),
-            athleteId: newSessionAthleteId,
-            templateId: newSessionTemplateId || undefined,
-            scheduledDate: formatDateKey(selectedDate),
-            status: 'planned',
-            exercises: selectedTemplate?.exercises.map((ex, idx) => ({
-                id: crypto.randomUUID(),
-                exerciseId: ex.exerciseId,
-                order: idx,
-                sets: Array.from({ length: ex.defaultSets }, (_, i) => ({
-                    id: crypto.randomUUID(),
-                    setNumber: i + 1,
-                    type: 'working' as const,
-                    targetReps: ex.defaultReps,
-                    targetWeight: ex.defaultWeight,
-                    restSeconds: ex.restSeconds,
-                    isCompleted: false,
-                })),
-            })) || [],
-        });
-
-        setShowCreateForm(false);
-        setNewSessionName('');
-        setNewSessionAthleteId('');
-        setNewSessionTemplateId('');
-    }, [newSessionName, newSessionAthleteId, newSessionTemplateId, selectedDate, templates, addSession, formatDateKey]);
+    // Phase 12C: handleCreateSession removed - session creation now happens directly in CalendarView modal
 
     // Session action handler
     const getSessionAction = useCallback((session: WorkoutSession): { label: string; onClick: () => void } => {
@@ -345,18 +296,10 @@ export function useCalendarView(): UseCalendarViewReturn {
 
         // Modal state
         selectedDate,
-        showCreateForm,
-        newSessionName,
-        newSessionAthleteId,
-        newSessionTemplateId,
-        setNewSessionName,
-        setNewSessionAthleteId,
-        setNewSessionTemplateId,
 
         // Handlers
         handleOpenCreateModal,
         handleCloseModal,
-        handleCreateSession,
         getSessionAction,
 
         // Training plan context

@@ -341,9 +341,13 @@ export function useLiveSession(sessionId: string | undefined): UseLiveSessionRet
         setShowFatiguePrompt(false);
     }, []);
 
-    // PHASE 4: Use domain function for starting session
+    // PHASE 4/12B: Use domain function for starting session with hard guards
     const handleStartSession = useCallback(() => {
         if (!session || session.status !== 'planned') return;
+
+        // PHASE 12B: Hard guard - never start session without exercises
+        if (session.exercises.length === 0) return;
+
         const updates = domainStartSession(session);
         updateSession(session.id, updates);
         // Show fatigue prompt after starting

@@ -117,7 +117,7 @@ export function LiveSession() {
                 athlete={athlete}
                 exercisesMap={exercisesMap}
                 onStart={handleStartSession}
-                onEdit={() => navigate(`/sessions/edit/${session.id}`)}
+                onEdit={() => navigate(`/planning?tab=sessions&sessionId=${session.id}&mode=edit`)}
                 onBack={() => navigate('/sessions')}
             />
         );

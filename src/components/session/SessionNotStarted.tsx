@@ -45,7 +45,12 @@ export function SessionNotStarted({
 
     // Status display
     const isReserved = session.status === 'reserved';
+    const hasExercises = session.exercises.length > 0;
     const statusLabel = isReserved ? 'Reservada' : 'Planificada';
+
+    // PHASE 12B: Strict start guard
+    // Only planned sessions WITH exercises can be started
+    const canStart = session.status === 'planned' && hasExercises;
 
     // Calculate totals
     const totalExercises = session.exercises.length;
@@ -175,19 +180,39 @@ export function SessionNotStarted({
                 </AuraPanel>
             )}
 
-            {/* Start Session Button */}
+            {/* PHASE 12B: Contextual guidance messages */}
+            {isReserved && (
+                <div className="p-4 rounded-lg bg-purple-900/20 border border-purple-500/30 text-purple-300 text-sm">
+                    📌 Este slot está <strong>reservado</strong>. Añade ejercicios para planificar la sesión antes de iniciar.
+                </div>
+            )}
+            {!isReserved && !hasExercises && (
+                <div className="p-4 rounded-lg bg-amber-900/20 border border-amber-600/30 text-amber-300 text-sm">
+                    ⚠️ Esta sesión no tiene ejercicios. Prepárala antes de iniciar.
+                </div>
+            )}
+
+            {/* PHASE 12B: Primary CTA - conditional based on canStart */}
             <div className="sticky bottom-4 pt-4">
-                <AuraButton
-                    variant="gold"
-                    size="lg"
-                    fullWidth
-                    onClick={onStart}
-                    disabled={session.exercises.length === 0}
-                >
-                    {session.exercises.length === 0
-                        ? 'Add exercises to start'
-                        : '▶ Start Session'}
-                </AuraButton>
+                {canStart ? (
+                    <AuraButton
+                        variant="gold"
+                        size="lg"
+                        fullWidth
+                        onClick={onStart}
+                    >
+                        ▶ Start Session
+                    </AuraButton>
+                ) : (
+                    <AuraButton
+                        variant="gold"
+                        size="lg"
+                        fullWidth
+                        onClick={handleEditInPlanning}
+                    >
+                        ✏️ Preparar sesión
+                    </AuraButton>
+                )}
             </div>
         </div>
     );

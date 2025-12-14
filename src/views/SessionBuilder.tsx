@@ -526,7 +526,8 @@ export function SessionBuilder({ editSessionId, editMode }: SessionBuilderProps)
 
         setNewSession({ name: '', athleteId: '', athleteIds: [], isMultiAthlete: false, templateId: '', description: '', scheduledDate: '' });
         setShowCreateModal(false);
-        navigate(`/sessions/live/${session.id}`);
+        // PHASE 12C: Canonical path -> Go to Editor, not Live
+        navigate(`/planning?tab=sessions&sessionId=${session.id}&mode=edit`);
     };
 
     const handleApplyAISession = (exercises: ExerciseEntry[], name: string) => {
@@ -556,7 +557,8 @@ export function SessionBuilder({ editSessionId, editMode }: SessionBuilderProps)
 
         setShowAIModal(false);
         setAIAthleteId('');
-        navigate(`/sessions/live/${session.id}`);
+        // PHASE 12C: Canonical path -> Go to Editor, not Live
+        navigate(`/planning?tab=sessions&sessionId=${session.id}&mode=edit`);
     };
 
     const handleOpenAIModal = () => {

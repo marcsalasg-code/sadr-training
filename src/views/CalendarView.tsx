@@ -20,66 +20,61 @@ import {
 import { DayAgenda } from '../components/calendar';
 import { useCalendarView } from '../hooks';
 import { getDayPlanFor } from '../utils';
+import { useTrainingStore } from '../store/store';
 
 export function CalendarView() {
 
     const navigate = useNavigate();
     const {
-    // Navigation
-    year,
-    month,
-    prevMonth,
-    nextMonth,
-    monthNames,
-    weekDays,
+        // Navigation
+        year,
+        month,
+        prevMonth,
+        nextMonth,
+        monthNames,
+        weekDays,
 
-    // Calendar data
-    calendarDays,
-    sessionsByDate,
+        // Calendar data
+        calendarDays,
+        sessionsByDate,
 
-    // Filtering
-    selectedAthleteId,
-    setSelectedAthleteId,
-    athleteOptions,
-    athleteOptionsForCreate,
-    templateOptions,
+        // Filtering
+        selectedAthleteId,
+        setSelectedAthleteId,
+        athleteOptions,
+        athleteOptionsForCreate,
+        templateOptions,
 
-    // Day expansion
-    expandedDate,
-    setExpandedDate,
-    handleDayClick,
+        // Day expansion
+        expandedDate,
+        setExpandedDate,
+        handleDayClick,
 
-    // Modal state
-    selectedDate,
-    showCreateForm,
-    newSessionName,
-    newSessionAthleteId,
-    newSessionTemplateId,
-    setNewSessionName,
-    setNewSessionAthleteId,
-    setNewSessionTemplateId,
+        // Modal state
+        selectedDate,
+        // showCreateForm & newSession state removed (Phase 12C)
 
-    // Handlers
-    handleOpenCreateModal,
-    handleCloseModal,
-    handleCreateSession,
-    getSessionAction,
+        // Handlers
+        handleOpenCreateModal,
+        handleCloseModal,
+        // handleCreateSession removed (Phase 12C)
+        getSessionAction,
 
-    // Training plan context
-    activePlan,
-    weeklyAdherence,
-    isTrainingDayForDate,
-    getDayPlanForDate,
+        // Training plan context
+        activePlan,
+        weeklyAdherence,
+        isTrainingDayForDate,
+        getDayPlanForDate,
 
-    // Utilities
-    isToday,
-    formatDateKey,
-    formatModalDate,
-    selectedDaySessions,
-    sessionTypeIcons,
-    statusConfig,
-    getAthlete,
-} = useCalendarView();
+        // Utilities
+        isToday,
+        formatDateKey,
+        formatModalDate,
+        selectedDaySessions,
+        sessionTypeIcons,
+        statusConfig,
+        getAthlete,
+    } = useCalendarView();
 
     return (
         <div className="p-8 space-y-6 max-w-6xl mx-auto">
@@ -291,7 +286,7 @@ export function CalendarView() {
                     date={expandedDate}
                     sessions={sessionsByDate[formatDateKey(expandedDate)] || []}
                     onClose={() => setExpandedDate(null)}
-                    onCreateSession={(hour) => handleOpenCreateModal(expandedDate, hour)}
+                    onCreateSession={() => handleOpenCreateModal(expandedDate!)}
                     onGoToSession={(sessionId) => getSessionAction({ id: sessionId } as any).onClick()}
                 />
             )}
@@ -372,62 +367,36 @@ export function CalendarView() {
 
                     <AuraDivider />
 
-                    {/* Create Session Form */}
-                    {!showCreateForm ? (
-                        <AuraButton
-                            variant="ghost"
-                            fullWidth
-                            onClick={() => setNewSessionName('')}
-                            icon={
-                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                                </svg>
+                    {/* Phase 12C: Canonical "Planificar Sesión" Button */}
+                    <AuraButton
+                        variant="gold"
+                        fullWidth
+                        icon={
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                            </svg>
+                        }
+                        onClick={() => {
+                            if (!selectedAthleteId || selectedAthleteId === 'all') {
+                                alert('Selecciona un atleta para planificar una sesión.');
+                                return;
                             }
-                        >
-                            Create new session
-                        </AuraButton>
-                    ) : (
-                        <AuraPanel variant="default">
-                            <div className="space-y-3">
-                                <h4 className="text-sm font-medium text-white">New Session</h4>
-                                <Input
-                                    placeholder="Session name *"
-                                    value={newSessionName}
-                                    onChange={(e) => setNewSessionName(e.target.value)}
-                                />
-                                <Select
-                                    value={newSessionAthleteId}
-                                    onChange={(e) => setNewSessionAthleteId(e.target.value)}
-                                    options={athleteOptionsForCreate}
-                                />
-                                <Select
-                                    value={newSessionTemplateId}
-                                    onChange={(e) => setNewSessionTemplateId(e.target.value)}
-                                    options={templateOptions}
-                                />
-                                <p className="text-[10px] text-gray-500 font-mono">
-                                    Date: {selectedDate ? formatModalDate(selectedDate) : ''}
-                                </p>
-                                <div className="flex gap-2 pt-2">
-                                    <AuraButton
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={handleCloseModal}
-                                    >
-                                        Cancel
-                                    </AuraButton>
-                                    <AuraButton
-                                        variant="gold"
-                                        size="sm"
-                                        onClick={handleCreateSession}
-                                        disabled={!newSessionName.trim() || !newSessionAthleteId}
-                                    >
-                                        Create Session
-                                    </AuraButton>
-                                </div>
-                            </div>
-                        </AuraPanel>
-                    )}
+                            if (selectedDate) {
+                                const { addSession } = useTrainingStore.getState();
+                                const dateKey = formatDateKey(selectedDate);
+                                const newSession = addSession({
+                                    name: `Sesión ${dateKey}`,
+                                    athleteId: selectedAthleteId,
+                                    scheduledDate: dateKey,
+                                    status: 'planned',
+                                    exercises: [],
+                                });
+                                navigate(`/planning?tab=sessions&sessionId=${newSession.id}&mode=edit`);
+                            }
+                        }}
+                    >
+                        Planificar sesión
+                    </AuraButton>
                 </div>
             </Modal>
         </div>
