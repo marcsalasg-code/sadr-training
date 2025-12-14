@@ -30,7 +30,9 @@ export interface NavGroupRuntime {
 export function useNavigation(): NavGroupRuntime[] {
     const location = useLocation();
     const sessions = useSessions();
-    const roleMode = useTrainingStore((state) => state.roleMode);
+    // Phase 15: Use currentUser.role instead of roleMode for real auth
+    const currentUser = useTrainingStore((state) => state.currentUser);
+    const role = currentUser?.role || 'coach'; // Default to coach if not logged in
 
     // Parse search params from location
     const searchParams = useMemo(
@@ -55,11 +57,16 @@ export function useNavigation(): NavGroupRuntime[] {
             })),
         }));
 
-        // Filter groups based on role mode (preserve existing behavior)
+        // Filter groups based on role
         const filteredGroups = baseGroups.filter((group) => {
-            // Athlete mode: hide 'Sistema' group (contains Dev Lab)
-            if (roleMode === 'athlete' && group.title === 'Sistema') {
-                return false;
+            // Athlete mode: hide coach-only groups
+            if (role === 'athlete') {
+                // Hide Sistema (Dev Lab, Settings advanced)
+                if (group.title === 'Sistema') return false;
+                // Hide Planificación (sessions, templates, exercises, calendar)
+                if (group.title === 'Planificación') return false;
+                // Hide Gestión (athletes list)
+                if (group.title === 'Gestión') return false;
             }
             return true;
         });
@@ -81,7 +88,7 @@ export function useNavigation(): NavGroupRuntime[] {
         }
 
         return filteredGroups;
-    }, [location.pathname, searchParams, sessions, activeLiveSession, roleMode]);
+    }, [location.pathname, searchParams, sessions, activeLiveSession, role]);
 
     return navGroups;
 }

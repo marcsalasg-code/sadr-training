@@ -82,6 +82,9 @@ export interface Athlete {
 
     // 1RM System
     oneRMRecords?: Record<string, OneRMRecord>;
+
+    // Authentication (Phase 15)
+    pin?: string; // Optional PIN for athlete login
 }
 
 // ============================================

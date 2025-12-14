@@ -21,6 +21,7 @@ import { createPlansSlice, type PlansSlice } from './plansSlice';
 import { createSettingsSlice, defaultSettings, type SettingsSlice } from './settingsSlice';
 import { createLabSlice, type LabSlice } from './labSlice';
 import { createConfigSlice, type ConfigSlice } from './configSlice';
+import { createAuthSlice, type AuthSlice } from './authSlice';
 
 // Import migrations
 import { migrateExerciseCatalog } from '../core/exercises/exercise.migration';
@@ -60,6 +61,7 @@ export type TrainingStore =
     & SettingsSlice
     & LabSlice
     & ConfigSlice
+    & AuthSlice
     & DataManagementSlice;
 
 // ============================================
@@ -78,6 +80,7 @@ export const useTrainingStore = create<TrainingStore>()(
             ...createSettingsSlice(set, get, api),
             ...createLabSlice(set, get, api),
             ...createConfigSlice(set, get, api),
+            ...createAuthSlice(set, get, api),
 
             // === DATA MANAGEMENT ===
             exportData: () => {
@@ -240,6 +243,10 @@ export const useTrainingStore = create<TrainingStore>()(
                 anchorConfig: state.anchorConfig,
                 exerciseCategories: state.exerciseCategories,
                 trainingConfig: state.trainingConfig,
+                // Auth state (Phase 15)
+                currentUser: state.currentUser,
+                isAuthenticated: state.isAuthenticated,
+                coachPin: state.coachPin,
                 // Note: usageEvents not persisted to save space
             }),
             // Run migrations on rehydration
