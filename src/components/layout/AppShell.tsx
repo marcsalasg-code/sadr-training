@@ -44,9 +44,9 @@ export function AppShell({ children }: AppShellProps) {
     const openMobileMenu = () => setIsMobileMenuOpen(true);
 
     return (
-        <div className="min-h-screen flex items-center justify-center p-0 lg:p-4 overflow-hidden bg-[var(--color-bg-primary)]">
+        <div className="min-h-screen flex items-center justify-center p-0 md:p-4 overflow-hidden bg-[var(--color-bg-primary)]">
             {/* Desktop App Shell */}
-            <div className="hidden lg:flex flex-col w-full max-w-[1600px] h-[95vh] bg-[var(--color-bg-secondary)] rounded-xl overflow-hidden shadow-[var(--shadow-shell)] border border-[var(--color-border-default)] relative">
+            <div className="hidden md:flex flex-col w-full max-w-[1600px] h-[95vh] bg-[var(--color-bg-secondary)] rounded-xl overflow-hidden shadow-[var(--shadow-shell)] border border-[var(--color-border-default)] relative">
 
                 {/* Browser Top Bar */}
                 <BrowserTopBar version="v1.0.0-beta" />
@@ -66,7 +66,7 @@ export function AppShell({ children }: AppShellProps) {
             </div>
 
             {/* Mobile Shell */}
-            <div className="lg:hidden w-full min-h-screen bg-[var(--color-bg-primary)] flex flex-col">
+            <div className="md:hidden w-full min-h-[100dvh] bg-[var(--color-bg-primary)] flex flex-col">
                 {/* Mobile Header */}
                 <header className="h-14 flex items-center justify-between px-4 bg-[var(--color-bg-tertiary)]/90 backdrop-blur-md sticky top-0 z-50 border-b border-[var(--color-border-default)]">
                     {/* Left: Hamburger + Logo */}
@@ -111,7 +111,7 @@ export function AppShell({ children }: AppShellProps) {
 
                 {/* Mobile Sidebar Panel (off-canvas, closed by default) */}
                 <div
-                    className={`fixed top-0 left-0 h-full w-72 bg-[#111111] z-[70] transform transition-transform duration-300 ease-out ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
+                    className={`fixed top-0 left-0 h-[100dvh] w-[80vw] max-w-80 bg-[#111111] z-[70] transform transition-transform duration-300 ease-out ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
                         }`}
                 >
                     {/* Close button header */}
@@ -174,7 +174,7 @@ function MobileBottomNav() {
     };
 
     return (
-        <nav className="fixed bottom-0 w-full h-16 bg-[var(--color-bg-secondary)]/95 backdrop-blur-xl border-t border-[var(--color-border-default)] flex items-center justify-around px-2 z-50 lg:hidden">
+        <nav className="fixed bottom-0 w-full h-16 bg-[var(--color-bg-secondary)]/95 backdrop-blur-xl border-t border-[var(--color-border-default)] flex items-center justify-around px-2 z-50 md:hidden">
             <NavButton icon="home" label="Home" href="/" isActive={isActive('/', true)} />
             <NavButton icon="calendar" label="Plan" href="/planning?tab=calendar" isActive={isPlanningTab('calendar')} />
             <NavButton icon="plus" label="" href="/planning?tab=sessions" isCenter />
