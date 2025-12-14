@@ -5,6 +5,7 @@
  * Shows hour slots (06:00-22:00) with Reservar/Crear sesión actions.
  * 
  * ITERATION 2: Real session creation with addSession
+ * PHASE 12E: Mobile UX - touch targets (44px min) + scroll containment
  */
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
@@ -234,13 +235,14 @@ export function DayAgendaPanel({ isOpen, onClose, selectedDate, initialAthleteId
                     </div>
                 )}
 
-                {/* Hour Slots */}
-                <div className="space-y-2 flex-1 flex flex-col min-h-0">
-                    <label className="text-xs text-gray-400 uppercase tracking-wider shrink-0">
+                {/* Hour Slots - PHASE 12E: Scroll containment */}
+                <div className="flex-1 flex flex-col min-h-0 -mx-4 md:mx-0">
+                    <label className="text-xs text-gray-400 uppercase tracking-wider shrink-0 px-4 md:px-0 pb-2">
                         Horario
                     </label>
 
-                    <div className="flex-1 overflow-y-auto space-y-1 pr-2 md:max-h-[400px] md:flex-none">
+                    {/* Single scroll owner with overscroll-contain to prevent scroll chaining */}
+                    <div className="flex-1 overflow-y-auto overscroll-contain space-y-2 px-4 md:px-0 md:max-h-[400px] md:flex-none">
                         {HOUR_SLOTS.map(slot => {
                             const slotSessions = getSlotSessions(slot.time);
                             const hasSession = slotSessions.length > 0;
@@ -263,6 +265,7 @@ export function DayAgendaPanel({ isOpen, onClose, selectedDate, initialAthleteId
                                         <span className="font-mono text-white text-sm w-14">
                                             {slot.label}
                                         </span>
+                                        {/* Session badges - PHASE 12E: min-h-11 for 44px touch target */}
                                         {slotSessions.map(s => (
                                             <button
                                                 key={s.id}
@@ -271,34 +274,34 @@ export function DayAgendaPanel({ isOpen, onClose, selectedDate, initialAthleteId
                                                     onClose();
                                                     navigate(`/planning?tab=sessions&sessionId=${s.id}&mode=edit`);
                                                 }}
-                                                className="cursor-pointer hover:scale-105 transition-transform"
+                                                className="min-h-11 px-3 py-2 rounded-lg bg-[#1A1A1A] border border-[#333] hover:border-[#C5A572] transition-all flex items-center gap-2"
                                                 title={`Editar: ${s.name}`}
                                             >
-                                                <AuraBadge
-                                                    variant={s.status === 'reserved' ? 'default' : 'gold'}
-                                                >
-                                                    {s.status === 'reserved' ? '📌' : '📋'} {getAthleteName(s.athleteId)}
-                                                </AuraBadge>
+                                                <span>{s.status === 'reserved' ? '📌' : '📋'}</span>
+                                                <span className="text-sm text-white truncate max-w-[120px]">
+                                                    {getAthleteName(s.athleteId)}
+                                                </span>
                                             </button>
                                         ))}
                                     </div>
 
-                                    <div className="flex items-center gap-2 w-full md:w-auto">
+                                    {/* CTA Buttons - PHASE 12E: min-h-11 for 44px touch target */}
+                                    <div className="flex items-center gap-3 w-full md:w-auto mt-2 md:mt-0">
                                         <AuraButton
                                             variant="secondary"
-                                            size="sm"
+                                            size="md"
                                             onClick={() => handleSlotAction(slot.time, 'reserve')}
                                             disabled={!selectedAthleteId}
-                                            className="flex-1 md:flex-none"
+                                            className="flex-1 md:flex-none min-h-11 px-4"
                                         >
                                             Reservar
                                         </AuraButton>
                                         <AuraButton
                                             variant="gold"
-                                            size="sm"
+                                            size="md"
                                             onClick={() => handleSlotAction(slot.time, 'create')}
                                             disabled={!selectedAthleteId}
-                                            className="flex-1 md:flex-none"
+                                            className="flex-1 md:flex-none min-h-11 px-4"
                                         >
                                             Crear sesión
                                         </AuraButton>
