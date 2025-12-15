@@ -31,6 +31,7 @@ export function AthletesList() {
         email: '',
         phone: '',
         notes: '',
+        pin: '',
     });
 
     // Filtrar atletas por búsqueda
@@ -69,10 +70,11 @@ export function AthletesList() {
             email: newAthlete.email.trim() || undefined,
             phone: newAthlete.phone.trim() || undefined,
             notes: newAthlete.notes.trim() || undefined,
+            pin: newAthlete.pin.trim() || undefined,
             isActive: true,
         });
 
-        setNewAthlete({ name: '', email: '', phone: '', notes: '' });
+        setNewAthlete({ name: '', email: '', phone: '', notes: '', pin: '' });
         setShowAddModal(false);
     };
 
@@ -209,6 +211,25 @@ export function AthletesList() {
                             rows={3}
                             className="w-full bg-[#0A0A0A] border border-[#333] rounded px-3 py-2 text-sm text-white focus:border-[var(--color-accent-gold)] outline-none resize-none"
                         />
+                    </div>
+
+                    <div className="pt-4 border-t border-[#2A2A2A]">
+                        <p className="text-xs text-gray-500 mb-3">Access Control</p>
+                        <Input
+                            label="Login PIN (Optional)"
+                            type="text"
+                            inputMode="numeric"
+                            placeholder="e.g. 1234"
+                            maxLength={6}
+                            value={newAthlete.pin || ''}
+                            onChange={(e) => {
+                                const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+                                setNewAthlete({ ...newAthlete, pin: val });
+                            }}
+                        />
+                        <p className="text-[10px] text-gray-600 mt-1">
+                            Used for athlete to log in to their personal view.
+                        </p>
                     </div>
                 </div>
             </Modal>

@@ -140,6 +140,26 @@ export function AthleteEditModal({
                         placeholder="Notas adicionales..."
                     />
                 </div>
+
+                {/* Access Control */}
+                <div className="pt-4 border-t border-[#2A2A2A]">
+                    <p className="text-xs text-gray-500 mb-3">Acceso de Atleta</p>
+                    <Input
+                        label="PIN de Login"
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="ej: 1234"
+                        maxLength={6}
+                        value={editData.pin || ''}
+                        onChange={(e) => {
+                            const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+                            setEditData({ ...editData, pin: val });
+                        }}
+                    />
+                    <p className="text-[10px] text-gray-600 mt-1">
+                        El atleta usa este PIN para entrar a su vista personal.
+                    </p>
+                </div>
             </div>
         </Modal>
     );

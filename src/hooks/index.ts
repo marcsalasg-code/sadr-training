@@ -15,7 +15,7 @@ export { useNavigation, type NavItemRuntime, type NavGroupRuntime } from './useN
 
 // Phase 15C: Role-based visibility hooks
 export { useCurrentUser, useIsCoach, useIsAthlete, useAthleteId, useIsAuthenticated } from './useCurrentUser';
-export { useVisibleSessions, useMyActiveSession, useMyUpcomingSessions, useMyCompletedSessionsCount } from './useVisibleSessions';
+export { useVisibleSessions, useMyActiveSession, useMyUpcomingSessions, useMyCompletedSessionsCount, useMyRecentCompletedSessions } from './useVisibleSessions';
 export { useVisibleAthletes, useMyProfile } from './useVisibleAthletes';
 
 // Phase 18: Actor Scope

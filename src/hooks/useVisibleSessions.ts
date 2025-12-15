@@ -79,3 +79,22 @@ export function useMyCompletedSessionsCount() {
         [sessions]
     );
 }
+
+/**
+ * Get the athlete's recent completed sessions (for history display)
+ * Phase 19C: For AthleteHome history section
+ */
+export function useMyRecentCompletedSessions(limit = 5) {
+    const sessions = useVisibleSessions();
+
+    return useMemo(() => {
+        return sessions
+            .filter(s => s.status === 'completed')
+            .sort((a, b) => {
+                const dateA = a.completedAt || a.scheduledDate || '';
+                const dateB = b.completedAt || b.scheduledDate || '';
+                return new Date(dateB).getTime() - new Date(dateA).getTime();
+            })
+            .slice(0, limit);
+    }, [sessions, limit]);
+}

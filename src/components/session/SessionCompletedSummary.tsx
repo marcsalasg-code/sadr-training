@@ -3,6 +3,8 @@
  * 
  * Shows workout results: volume, sets, duration, stats.
  * Displayed when session.status === 'completed'
+ * 
+ * Phase 19B: Role-aware navigation actions.
  */
 
 import {
@@ -14,6 +16,7 @@ import {
     AuraMetric,
 } from '../ui/aura';
 import { formatVolume } from '../../core/analysis/metrics';
+import { useActorScope } from '../../hooks';
 import type { WorkoutSession, Exercise, Athlete } from '../../types/types';
 
 // ============================================
@@ -90,6 +93,7 @@ export function SessionCompletedSummary({
     onViewDetails,
 }: SessionCompletedSummaryProps) {
     const stats = calculateSessionStats(session);
+    const { isAthlete, isCoach } = useActorScope();
 
     // Find best set (highest volume single set)
     type BestSetInfo = { exerciseName: string; weight: number; reps: number };
@@ -235,18 +239,33 @@ export function SessionCompletedSummary({
                 </AuraPanel>
             )}
 
-            {/* Actions */}
+            {/* Actions - Phase 19B: Role-aware */}
             <div className="flex gap-3">
-                <AuraButton variant="gold" fullWidth onClick={onBackToDashboard}>
-                    ← Back to Dashboard
-                </AuraButton>
-                <AuraButton variant="secondary" fullWidth onClick={onViewCalendar}>
-                    View Calendar
-                </AuraButton>
-                {onViewDetails && (
-                    <AuraButton variant="ghost" onClick={onViewDetails}>
-                        View Details
-                    </AuraButton>
+                {isAthlete ? (
+                    // Athlete: Navigate to /me (home)
+                    <>
+                        <AuraButton variant="gold" fullWidth onClick={onBackToDashboard}>
+                            ← Volver al inicio
+                        </AuraButton>
+                        <AuraButton variant="secondary" fullWidth onClick={() => window.location.href = '/analytics'}>
+                            📊 Mis estadísticas
+                        </AuraButton>
+                    </>
+                ) : (
+                    // Coach: Original actions (dashboard + calendar)
+                    <>
+                        <AuraButton variant="gold" fullWidth onClick={onBackToDashboard}>
+                            ← Back to Dashboard
+                        </AuraButton>
+                        <AuraButton variant="secondary" fullWidth onClick={onViewCalendar}>
+                            View Calendar
+                        </AuraButton>
+                        {onViewDetails && (
+                            <AuraButton variant="ghost" onClick={onViewDetails}>
+                                View Details
+                            </AuraButton>
+                        )}
+                    </>
                 )}
             </div>
         </div>

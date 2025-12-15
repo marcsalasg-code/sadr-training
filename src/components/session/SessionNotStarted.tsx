@@ -3,6 +3,8 @@
  *
  * Shows session preview with exercise list and "Start Session" button.
  * Displayed when session.status === 'planned' or 'reserved'
+ * 
+ * Phase 19B: Hides coach-only actions (edit/prepare) for athlete role.
  */
 
 import { useNavigate } from 'react-router-dom';
@@ -13,7 +15,9 @@ import {
     AuraBadge,
     AuraSection,
     AuraGrid,
+    AuraEmptyState,
 } from '../ui/aura';
+import { useActorScope } from '../../hooks';
 import type { WorkoutSession, Exercise, Athlete } from '../../types/types';
 
 // ============================================
@@ -42,6 +46,7 @@ export function SessionNotStarted({
     onBack,
 }: SessionNotStartedProps) {
     const navigate = useNavigate();
+    const { isCoach, isAthlete } = useActorScope();
 
     // Status display
     const isReserved = session.status === 'reserved';
@@ -97,9 +102,12 @@ export function SessionNotStarted({
                         <AuraButton variant="ghost" onClick={onBack}>
                             ← Volver
                         </AuraButton>
-                        <AuraButton variant="secondary" onClick={handleEditInPlanning}>
-                            ✏️ Editar sesión
-                        </AuraButton>
+                        {/* Phase 19B: Edit button only for coach */}
+                        {isCoach && (
+                            <AuraButton variant="secondary" onClick={handleEditInPlanning}>
+                                ✏️ Editar sesión
+                            </AuraButton>
+                        )}
                     </div>
                 </div>
             </AuraPanel>
@@ -162,12 +170,21 @@ export function SessionNotStarted({
                 </div>
 
                 {session.exercises.length === 0 && (
-                    <div className="text-center py-8 text-gray-500">
-                        <p>No exercises added yet.</p>
-                        <AuraButton variant="secondary" onClick={onEdit} className="mt-3">
-                            Add Exercises
-                        </AuraButton>
-                    </div>
+                    isCoach ? (
+                        <div className="text-center py-8 text-gray-500">
+                            <p>No exercises added yet.</p>
+                            <AuraButton variant="secondary" onClick={onEdit} className="mt-3">
+                                Add Exercises
+                            </AuraButton>
+                        </div>
+                    ) : (
+                        <AuraEmptyState
+                            icon="⏳"
+                            title="Sesión pendiente de preparación"
+                            description="Tu entrenador aún no ha añadido los ejercicios. Vuelve más tarde."
+                            action={{ label: '← Volver', onClick: onBack }}
+                        />
+                    )
                 )}
             </AuraSection>
 
@@ -180,19 +197,19 @@ export function SessionNotStarted({
                 </AuraPanel>
             )}
 
-            {/* PHASE 12B: Contextual guidance messages */}
-            {isReserved && (
+            {/* PHASE 12B: Contextual guidance messages (coach only) */}
+            {isCoach && isReserved && (
                 <div className="p-4 rounded-lg bg-purple-900/20 border border-purple-500/30 text-purple-300 text-sm">
                     📌 Este slot está <strong>reservado</strong>. Añade ejercicios para planificar la sesión antes de iniciar.
                 </div>
             )}
-            {!isReserved && !hasExercises && (
+            {isCoach && !isReserved && !hasExercises && (
                 <div className="p-4 rounded-lg bg-amber-900/20 border border-amber-600/30 text-amber-300 text-sm">
                     ⚠️ Esta sesión no tiene ejercicios. Prepárala antes de iniciar.
                 </div>
             )}
 
-            {/* PHASE 12B: Primary CTA - conditional based on canStart */}
+            {/* PHASE 12B + 19B: Primary CTA - conditional based on canStart and role */}
             <div className="sticky bottom-4 pt-4">
                 {canStart ? (
                     <AuraButton
@@ -203,7 +220,7 @@ export function SessionNotStarted({
                     >
                         ▶ Start Session
                     </AuraButton>
-                ) : (
+                ) : isCoach ? (
                     <AuraButton
                         variant="gold"
                         size="lg"
@@ -211,6 +228,16 @@ export function SessionNotStarted({
                         onClick={handleEditInPlanning}
                     >
                         ✏️ Preparar sesión
+                    </AuraButton>
+                ) : (
+                    // Athlete sees a disabled state when session not ready
+                    <AuraButton
+                        variant="secondary"
+                        size="lg"
+                        fullWidth
+                        onClick={onBack}
+                    >
+                        ← Volver al inicio
                     </AuraButton>
                 )}
             </div>

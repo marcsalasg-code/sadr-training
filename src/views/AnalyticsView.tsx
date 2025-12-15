@@ -100,6 +100,58 @@ export function AnalyticsView() {
             .map(([week, volume]) => ({ week, volume }));
     }, [filteredSessions]);
 
+    // ============================================
+    // Phase 19C: Athlete Lite View (Early Return)
+    // ============================================
+    if (isAthlete) {
+        const maxVolume = Math.max(...weeklyVolume.map(w => w.volume), 1);
+        return (
+            <PageContainer title="Mi Progreso" subtitle="Últimas 4 semanas de entrenamiento">
+                {/* KPI Cards */}
+                <div className="grid grid-cols-2 gap-4 mb-6">
+                    <AuraCard>
+                        <p className="text-xs text-gray-400 uppercase tracking-wider">Sesiones</p>
+                        <p className="text-4xl font-bold text-white mt-2">{metrics.sessionCount}</p>
+                        <p className="text-xs text-gray-500 mt-1">completadas</p>
+                    </AuraCard>
+                    <AuraCard>
+                        <p className="text-xs text-gray-400 uppercase tracking-wider">Volumen Total</p>
+                        <p className="text-4xl font-bold text-[var(--color-accent-gold)] mt-2">
+                            {(metrics.totalVolume / 1000).toFixed(1)}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">toneladas</p>
+                    </AuraCard>
+                </div>
+
+                {/* Simple Volume Chart */}
+                <AuraCard>
+                    <h3 className="text-sm text-gray-400 uppercase tracking-wider mb-4">📊 Volumen por semana</h3>
+                    {weeklyVolume.length > 0 ? (
+                        <div className="flex items-end gap-2 h-32">
+                            {weeklyVolume.map((w, i) => (
+                                <div key={w.week} className="flex-1 flex flex-col items-center gap-1">
+                                    <div
+                                        className="w-full bg-[var(--color-accent-gold)]/80 rounded-t transition-all"
+                                        style={{ height: `${(w.volume / maxVolume) * 100}%`, minHeight: '4px' }}
+                                    />
+                                    <span className="text-[10px] text-gray-500">
+                                        {new Date(w.week).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <p className="text-center text-gray-500 py-8">Sin datos aún</p>
+                    )}
+                </AuraCard>
+            </PageContainer>
+        );
+    }
+
+    // ============================================
+    // Coach Full View (existing code below)
+    // ============================================
+
     // Top exercises
     const topExercises = useMemo(() => {
         const volumes: Record<string, { volume: number; sets: number }> = {};

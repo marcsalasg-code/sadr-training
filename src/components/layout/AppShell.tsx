@@ -4,6 +4,7 @@
  * 
  * Phase 13: Mobile sidebar now uses shared SidebarNavContent component.
  * Off-canvas, closed by default, with overlay + auto-close on navigation.
+ * Phase 21: MobileBottomNav is now role-aware.
  */
 
 import { useState, useEffect } from 'react';
@@ -14,6 +15,8 @@ import { SidebarNavContent } from './SidebarNavContent';
 import { MobileDrawer } from './MobileDrawer';
 import { ContentArea } from './ContentArea';
 import { ErrorBoundary } from '../common/ErrorBoundary';
+import { useActorScope } from '../../hooks/useActorScope';
+import { useSessions, useTrainingStore } from '../../store/store';
 
 interface AppShellProps {
     children: React.ReactNode;
@@ -148,25 +151,65 @@ export function AppShell({ children }: AppShellProps) {
 }
 
 // =============================================================================
-// MOBILE BOTTOM NAV (kept for quick access to key routes)
+// MOBILE BOTTOM NAV - Phase 21: Role-aware navigation
 // =============================================================================
 
 function MobileBottomNav() {
     const location = useLocation();
+    const { isAthlete } = useActorScope();
+    const sessions = useSessions();
+    const currentUser = useTrainingStore((s) => s.currentUser);
+
+    // Find athlete's active session (in_progress)
+    const activeSession = isAthlete && currentUser?.athleteId
+        ? sessions.find(s => s.status === 'in_progress' && s.athleteId === currentUser.athleteId)
+        : sessions.find(s => s.status === 'in_progress'); // Coach sees any active
 
     const isActive = (path: string, exactMatch = false) => {
         if (exactMatch) return location.pathname === path;
         return location.pathname.startsWith(path);
     };
 
-    // Check for planning tab active states
     const isPlanningTab = (tab: string) => {
         return location.pathname === '/planning' &&
             new URLSearchParams(location.search).get('tab') === tab;
     };
 
+    const isLiveActive = location.pathname.startsWith('/sessions/live');
+
+    // Don't render if no user (AuthGuard should prevent this anyway)
+    if (!currentUser) return null;
+
+    // =========================================================================
+    // ATHLETE NAV: Home, [Live if active], Stats, Profile (4 items max)
+    // =========================================================================
+    if (isAthlete) {
+        return (
+            <nav className="fixed bottom-0 w-full h-16 bg-[var(--color-bg-secondary)]/95 backdrop-blur-xl border-t border-[var(--color-border-default)] flex items-center justify-around px-2 z-50 lg:hidden pb-[max(env(safe-area-inset-bottom),0px)]">
+                <NavButton icon="home" label="Inicio" href="/me" isActive={isActive('/me', true)} />
+                {activeSession ? (
+                    <NavButton
+                        icon="live"
+                        label="En vivo"
+                        href={`/sessions/live/${activeSession.id}`}
+                        isActive={isLiveActive}
+                        isLive
+                    />
+                ) : (
+                    // No active session - show placeholder or skip
+                    <NavButton icon="calendar" label="Hoy" href="/me" isActive={false} />
+                )}
+                <NavButton icon="chart" label="Stats" href="/analytics" isActive={isActive('/analytics')} />
+                <NavButton icon="user" label="Perfil" href="/settings" isActive={isActive('/settings')} />
+            </nav>
+        );
+    }
+
+    // =========================================================================
+    // COACH NAV: Home, Calendar, + (center), Stats, Profile (5 items)
+    // =========================================================================
     return (
-        <nav className="fixed bottom-0 w-full h-16 bg-[var(--color-bg-secondary)]/95 backdrop-blur-xl border-t border-[var(--color-border-default)] flex items-center justify-around px-2 z-50 lg:hidden">
+        <nav className="fixed bottom-0 w-full h-16 bg-[var(--color-bg-secondary)]/95 backdrop-blur-xl border-t border-[var(--color-border-default)] flex items-center justify-around px-2 z-50 lg:hidden pb-[max(env(safe-area-inset-bottom),0px)]">
             <NavButton icon="home" label="Home" href="/" isActive={isActive('/', true)} />
             <NavButton icon="calendar" label="Plan" href="/planning?tab=calendar" isActive={isPlanningTab('calendar')} />
             <NavButton icon="plus" label="" href="/planning?tab=sessions" isCenter />
@@ -176,12 +219,13 @@ function MobileBottomNav() {
     );
 }
 
-function NavButton({ icon, label, href, isActive = false, isCenter = false }: {
+function NavButton({ icon, label, href, isActive = false, isCenter = false, isLive = false }: {
     icon: string;
     label: string;
     href: string;
     isActive?: boolean;
     isCenter?: boolean;
+    isLive?: boolean;
 }) {
     const iconClass = isActive ? 'text-[var(--color-accent-gold)]' : 'text-gray-500';
 
@@ -202,10 +246,19 @@ function NavButton({ icon, label, href, isActive = false, isCenter = false }: {
         calendar: <svg className={`w-5 h-5 ${iconClass}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>,
         chart: <svg className={`w-5 h-5 ${iconClass}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>,
         user: <svg className={`w-5 h-5 ${iconClass}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>,
+        live: (
+            <div className="relative">
+                <svg className={`w-5 h-5 ${isActive ? 'text-green-400' : 'text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                {isLive && <span className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full animate-pulse" />}
+            </div>
+        ),
     };
 
     return (
-        <Link to={href} className={`flex flex-col items-center gap-1 p-2 ${iconClass}`}>
+        <Link to={href} className={`flex flex-col items-center gap-1 p-2 min-w-[44px] min-h-[44px] ${iconClass}`}>
             {icons[icon]}
             <span className="text-[9px] font-medium">{label}</span>
         </Link>

@@ -125,13 +125,16 @@ export function LiveSession() {
 
     // Completed session → Show summary view
     if (session.status === 'completed') {
+        // Phase 19B: Navigate athlete to /me, coach to /
+        const backPath = athlete ? '/me' : '/';
+        const calendarPath = '/planning?tab=calendar';
         return (
             <SessionCompletedSummary
                 session={session}
                 athlete={athlete}
                 exercisesMap={exercisesMap}
-                onBackToDashboard={() => navigate('/')}
-                onViewCalendar={() => navigate('/calendar')}
+                onBackToDashboard={() => navigate(backPath)}
+                onViewCalendar={() => navigate(calendarPath)}
             />
         );
     }
