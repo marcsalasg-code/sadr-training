@@ -46,6 +46,9 @@ export type {
     SessionOrigin,
     AthleteSessionData,
     WorkoutSession,
+    // Phase 17A: Training taxonomy
+    TrainingType,
+    SessionGoal,
 } from '../domain/sessions/types';
 
 export {
@@ -103,6 +106,10 @@ export type {
     MovementPattern,
     MuscleGroup,
     BodyRegion,
+    // Phase 17A: Equipment, mechanics, difficulty
+    ExerciseEquipment,
+    ExerciseMechanics,
+    ExerciseDifficulty,
 } from '../domain/exercises/types';
 
 export {

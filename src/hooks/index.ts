@@ -18,3 +18,6 @@ export { useCurrentUser, useIsCoach, useIsAthlete, useAthleteId, useIsAuthentica
 export { useVisibleSessions, useMyActiveSession, useMyUpcomingSessions, useMyCompletedSessionsCount } from './useVisibleSessions';
 export { useVisibleAthletes, useMyProfile } from './useVisibleAthletes';
 
+// Phase 18: Actor Scope
+export { useActorScope, type ActorScope } from './useActorScope';
+

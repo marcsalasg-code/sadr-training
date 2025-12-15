@@ -13,6 +13,7 @@ import { useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTrainingStore, useSessions, useAthletes, useTemplates } from '../store/store';
 import { useTrainingPlan } from './useTrainingPlan';
+import { useActorScope } from './useActorScope';
 import { filterSessionsByAthlete } from '../domain/sessions';
 // PHASE 6: Use domain calendar functions (LT2)
 import {
@@ -124,9 +125,20 @@ export function useCalendarView(): UseCalendarViewReturn {
     const { getAthlete } = useTrainingStore();
     const { activePlan, weeklyAdherence } = useTrainingPlan();
 
+    // Phase 18: Actor scope for athlete data isolation
+    const { isAthlete, actorAthleteId } = useActorScope();
+
     // Calendar navigation state
     const [currentDate, setCurrentDate] = useState(new Date());
-    const [selectedAthleteId, setSelectedAthleteId] = useState<string>('all');
+    // Phase 18: Initialize with actorAthleteId if athlete, else 'all'
+    const [_selectedAthleteId, _setSelectedAthleteId] = useState<string>(() => actorAthleteId ?? 'all');
+
+    // Phase 18: No-op setter for athletes (can't change scope)
+    const selectedAthleteId = isAthlete && actorAthleteId ? actorAthleteId : _selectedAthleteId;
+    const setSelectedAthleteId = useCallback((id: string) => {
+        if (isAthlete) return; // Athletes can't change athlete scope
+        _setSelectedAthleteId(id);
+    }, [isAthlete]);
 
     // Modal state - Phase 12D: unified for DayAgendaPanel
     const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -198,16 +210,29 @@ export function useCalendarView(): UseCalendarViewReturn {
         return `${dayName}, ${monthName} ${day}`;
     }, []);
 
-    // Select options
-    const athleteOptions = useMemo(() => [
-        { value: 'all', label: 'All Athletes' },
-        ...athletes.map(a => ({ value: a.id, label: a.name }))
-    ], [athletes]);
+    // Select options - Phase 18: Filter for athlete scope
+    const athleteOptions = useMemo(() => {
+        if (isAthlete && actorAthleteId) {
+            // Athlete only sees themselves, no 'All' option
+            const me = athletes.find(a => a.id === actorAthleteId);
+            return me ? [{ value: me.id, label: me.name }] : [];
+        }
+        return [
+            { value: 'all', label: 'All Athletes' },
+            ...athletes.map(a => ({ value: a.id, label: a.name }))
+        ];
+    }, [athletes, isAthlete, actorAthleteId]);
 
-    const athleteOptionsForCreate = useMemo(() => [
-        { value: '', label: 'Select athlete...' },
-        ...athletes.map(a => ({ value: a.id, label: a.name }))
-    ], [athletes]);
+    const athleteOptionsForCreate = useMemo(() => {
+        if (isAthlete && actorAthleteId) {
+            const me = athletes.find(a => a.id === actorAthleteId);
+            return me ? [{ value: me.id, label: me.name }] : [];
+        }
+        return [
+            { value: '', label: 'Select athlete...' },
+            ...athletes.map(a => ({ value: a.id, label: a.name }))
+        ];
+    }, [athletes, isAthlete, actorAthleteId]);
 
     const templateOptions = useMemo(() => [
         { value: '', label: 'No template' },

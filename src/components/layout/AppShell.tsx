@@ -11,6 +11,7 @@ import { useLocation, Link } from 'react-router-dom';
 import { BrowserTopBar } from './BrowserTopBar';
 import { SidebarNav } from './SidebarNav';
 import { SidebarNavContent } from './SidebarNavContent';
+import { MobileDrawer } from './MobileDrawer';
 import { ContentArea } from './ContentArea';
 import { ErrorBoundary } from '../common/ErrorBoundary';
 
@@ -28,15 +29,18 @@ export function AppShell({ children }: AppShellProps) {
         setIsMobileMenuOpen(false);
     }, [location.pathname, location.search]);
 
-    // Lock body scroll when menu is open
+    // Phase 14D: ESC key closes drawer (scroll lock moved to MobileDrawer)
     useEffect(() => {
+        const handleEscape = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                closeMobileMenu();
+            }
+        };
         if (isMobileMenuOpen) {
-            document.body.style.overflow = 'hidden';
-        } else {
-            document.body.style.overflow = '';
+            window.addEventListener('keydown', handleEscape);
         }
         return () => {
-            document.body.style.overflow = '';
+            window.removeEventListener('keydown', handleEscape);
         };
     }, [isMobileMenuOpen]);
 
@@ -44,9 +48,10 @@ export function AppShell({ children }: AppShellProps) {
     const openMobileMenu = () => setIsMobileMenuOpen(true);
 
     return (
-        <div className="min-h-screen flex items-center justify-center p-0 md:p-4 overflow-hidden bg-[var(--color-bg-primary)]">
-            {/* Desktop App Shell */}
-            <div className="hidden md:flex flex-col w-full max-w-[1600px] h-[95vh] bg-[var(--color-bg-secondary)] rounded-xl overflow-hidden shadow-[var(--shadow-shell)] border border-[var(--color-border-default)] relative">
+        // Phase 14D (P0.5): flex/center/overflow-hidden only on lg: to avoid mobile clipping
+        <div className="min-h-screen lg:flex lg:items-center lg:justify-center p-0 lg:p-4 lg:overflow-hidden bg-[var(--color-bg-primary)]">
+            {/* Desktop App Shell - Phase 14B: Use lg breakpoint for cleaner tablet handling */}
+            <div className="hidden lg:flex flex-col w-full max-w-[1600px] h-[95vh] bg-[var(--color-bg-secondary)] rounded-xl overflow-hidden shadow-[var(--shadow-shell)] border border-[var(--color-border-default)] relative">
 
                 {/* Browser Top Bar */}
                 <BrowserTopBar version="v1.0.0-beta" />
@@ -65,8 +70,8 @@ export function AppShell({ children }: AppShellProps) {
                 </div>
             </div>
 
-            {/* Mobile Shell */}
-            <div className="md:hidden w-full min-h-[100dvh] bg-[var(--color-bg-primary)] flex flex-col">
+            {/* Mobile/Tablet Shell - Phase 14B: Visible below lg breakpoint */}
+            <div className="lg:hidden w-full min-h-[100dvh] bg-[var(--color-bg-primary)] flex flex-col">
                 {/* Mobile Header */}
                 <header className="h-14 flex items-center justify-between px-4 bg-[var(--color-bg-tertiary)]/90 backdrop-blur-md sticky top-0 z-50 border-b border-[var(--color-border-default)]">
                     {/* Left: Hamburger + Logo */}
@@ -100,22 +105,10 @@ export function AppShell({ children }: AppShellProps) {
                     </Link>
                 </header>
 
-                {/* Mobile Sidebar Overlay */}
-                {isMobileMenuOpen && (
-                    <div
-                        className="fixed inset-0 bg-black/50 z-[60] transition-opacity"
-                        onClick={closeMobileMenu}
-                        aria-hidden="true"
-                    />
-                )}
-
-                {/* Mobile Sidebar Panel (off-canvas, closed by default) */}
-                <div
-                    className={`fixed top-0 left-0 h-[100dvh] w-[80vw] max-w-80 bg-[#111111] z-[70] transform transition-transform duration-300 ease-out ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
-                        }`}
-                >
-                    {/* Close button header */}
-                    <div className="h-14 flex items-center justify-between px-4 border-b border-[var(--color-border-default)]">
+                {/* Phase 14D: Mobile Drawer via Portal (escapes overflow-hidden clipping) */}
+                <MobileDrawer isOpen={isMobileMenuOpen} onClose={closeMobileMenu}>
+                    {/* Drawer Header */}
+                    <div className="h-14 flex items-center justify-between px-4 border-b border-[var(--color-border-default)] shrink-0">
                         <div className="flex items-center gap-2">
                             <div className="w-6 h-6 bg-[#1A1A1A] rounded border border-[#333] flex items-center justify-center">
                                 <svg className="w-3 h-3 text-[var(--color-accent-gold)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -134,12 +127,11 @@ export function AppShell({ children }: AppShellProps) {
                             </svg>
                         </button>
                     </div>
-
-                    {/* Shared Navigation Content (with onNavigate callback to close menu) */}
-                    <div className="h-[calc(100%-3.5rem)] overflow-hidden">
+                    {/* Navigation Content */}
+                    <div className="flex-1 overflow-hidden">
                         <SidebarNavContent onNavigate={closeMobileMenu} />
                     </div>
-                </div>
+                </MobileDrawer>
 
                 {/* Mobile Content */}
                 <main className="flex-1 overflow-y-auto pb-20">
@@ -174,7 +166,7 @@ function MobileBottomNav() {
     };
 
     return (
-        <nav className="fixed bottom-0 w-full h-16 bg-[var(--color-bg-secondary)]/95 backdrop-blur-xl border-t border-[var(--color-border-default)] flex items-center justify-around px-2 z-50 md:hidden">
+        <nav className="fixed bottom-0 w-full h-16 bg-[var(--color-bg-secondary)]/95 backdrop-blur-xl border-t border-[var(--color-border-default)] flex items-center justify-around px-2 z-50 lg:hidden">
             <NavButton icon="home" label="Home" href="/" isActive={isActive('/', true)} />
             <NavButton icon="calendar" label="Plan" href="/planning?tab=calendar" isActive={isPlanningTab('calendar')} />
             <NavButton icon="plus" label="" href="/planning?tab=sessions" isCenter />

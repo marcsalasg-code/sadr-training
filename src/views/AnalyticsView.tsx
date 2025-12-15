@@ -11,7 +11,7 @@ import { PageContainer } from '../components/layout';
 import { Select, Tabs, Badge } from '../components/ui';
 import { AuraCard } from '../components/ui/aura';
 import { useSessions, useAthletes, useExercises, useTrainingPlans } from '../store/store';
-import { useIsAthlete, useAthleteId, useVisibleSessions, useVisibleAthletes } from '../hooks';
+import { useActorScope, useVisibleSessions, useVisibleAthletes } from '../hooks';
 import { getSessionLog } from '../utils/sessionLog';
 import { getWeeklyIntensityFatigue } from '../core/analysis/metrics';
 import {
@@ -29,27 +29,26 @@ export function AnalyticsView() {
     const exercises = useExercises();
     const trainingPlans = useTrainingPlans();
 
-    // Phase 15C: Role-based visibility
-    const isAthlete = useIsAthlete();
-    const athleteIdFromAuth = useAthleteId();
+    // Phase 18: Use centralized actor scope
+    const { isAthlete, actorAthleteId } = useActorScope();
     const visibleSessions = useVisibleSessions();
     const visibleAthletes = useVisibleAthletes();
 
     // For athlete: force their athleteId, for coach: allow selection
-    const initialAthlete = isAthlete
-        ? (athleteIdFromAuth || 'all')
+    const initialAthlete = isAthlete && actorAthleteId
+        ? actorAthleteId
         : (searchParams.get('athleteId') || 'all');
     const initialRange = searchParams.get('range') || 'month';
 
     const [selectedAthlete, setSelectedAthlete] = useState<string>(initialAthlete);
     const [timeRange, setTimeRange] = useState<string>(initialRange);
 
-    // Lock athlete selector for athlete role
+    // Phase 18: Lock athlete selector for athlete role
     useEffect(() => {
-        if (isAthlete && athleteIdFromAuth) {
-            setSelectedAthlete(athleteIdFromAuth);
+        if (isAthlete && actorAthleteId) {
+            setSelectedAthlete(actorAthleteId);
         }
-    }, [isAthlete, athleteIdFromAuth]);
+    }, [isAthlete, actorAthleteId]);
 
     useEffect(() => {
         const athleteParam = searchParams.get('athleteId');

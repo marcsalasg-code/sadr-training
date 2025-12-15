@@ -24,15 +24,25 @@ import {
     SessionFilters,
     SessionsListByStatus,
     SessionCreateModal,
+    TemplatePickerModal,
 } from '../components/session';
 import { Modal } from '../components/ui/Modal';
 import { SlotPickerModal } from '../components/scheduling/SlotPickerModal';
 import { useTrainingStore, useSessions, useAthletes, useTemplates, useExercises } from '../store/store';
 import { useAIEnabled } from '../ai';
-import { useTrainingPlan } from '../hooks';
+import { useTrainingPlan, useIsCoach } from '../hooks';
 import { getRecommendedTemplates, getTemplateBadge } from '../utils/templateHelpers';
 import { createDefaultMigrationStructure, DEFAULT_BLOCK_ID } from '../core/sessions/sessionStructure.migration';
-import type { ExerciseEntry, WorkoutSession } from '../types/types';
+import { materializeSessionPatchFromTemplate } from '../domain/sessions/mappers';
+import type { ExerciseEntry, WorkoutSession, WorkoutTemplate, SessionStructure } from '../types/types';
+
+// Phase 16C: Snapshot type for undo
+interface SessionSnapshot {
+    exercises: ExerciseEntry[];
+    structure: SessionStructure | undefined;
+    templateId: string | undefined;
+    status: WorkoutSession['status'];
+}
 
 // ============================================
 // PROPS
@@ -50,8 +60,8 @@ interface SessionBuilderProps {
 interface SessionEditorProps {
     session: WorkoutSession;
     onClose: () => void;
-    onSave: (exercises: ExerciseEntry[]) => void;
-    onSaveAndStart: (exercises: ExerciseEntry[]) => void;
+    onSave: (exercises: ExerciseEntry[], structure?: WorkoutSession['structure'], templateId?: string) => void;
+    onSaveAndStart: (exercises: ExerciseEntry[], structure?: WorkoutSession['structure'], templateId?: string) => void;
     onReschedule: (scheduledDate: string) => void;
 }
 
@@ -59,11 +69,29 @@ function SessionEditor({ session, onClose, onSave, onSaveAndStart, onReschedule 
     const exercises = useExercises();
     const athletes = useAthletes();
     const allSessions = useSessions();
+    const templates = useTemplates(); // Phase 16C: For resolving template names
     const [editableExercises, setEditableExercises] = useState<ExerciseEntry[]>(session.exercises);
+    const [editableStructure, setEditableStructure] = useState(session.structure);
     const [showAddExercise, setShowAddExercise] = useState(false);
     const [showReschedule, setShowReschedule] = useState(false);
+    const [showTemplatePicker, setShowTemplatePicker] = useState(false);
+    const [pendingTemplate, setPendingTemplate] = useState<WorkoutTemplate | null>(null);
+    const [appliedTemplateId, setAppliedTemplateId] = useState<string | undefined>(session.templateId);
     const [hasChanges, setHasChanges] = useState(false);
     const [saveError, setSaveError] = useState<string | null>(null);
+    const [showRemoveConfirm, setShowRemoveConfirm] = useState(false); // Phase 16C
+
+    // Phase 16C: Undo snapshot (1-step)
+    const [undoSnapshot, setUndoSnapshot] = useState<SessionSnapshot | null>(null);
+
+    // Phase 16A: Coach-only feature
+    const isCoach = useIsCoach();
+
+    // Phase 16C: Get template name for display
+    const appliedTemplateName = useMemo(() => {
+        if (!appliedTemplateId) return null;
+        return templates.find(t => t.id === appliedTemplateId)?.name || `ID: ${appliedTemplateId.slice(0, 8)}...`;
+    }, [appliedTemplateId, templates]);
 
     const athlete = athletes.find(a => a.id === session.athleteId);
 
@@ -122,9 +150,62 @@ function SessionEditor({ session, onClose, onSave, onSaveAndStart, onReschedule 
         setHasChanges(true);
     };
 
+    // Phase 16A: Apply template
+    const handleApplyTemplate = (template: WorkoutTemplate) => {
+        // If session has exercises, confirm replacement
+        if (editableExercises.length > 0) {
+            setPendingTemplate(template);
+        } else {
+            applyTemplateNow(template);
+        }
+    };
+
+    const applyTemplateNow = (template: WorkoutTemplate) => {
+        // Phase 16C: Save snapshot for undo
+        setUndoSnapshot({
+            exercises: editableExercises,
+            structure: editableStructure,
+            templateId: appliedTemplateId,
+            status: session.status,
+        });
+
+        // Use the unified patch function
+        const patch = materializeSessionPatchFromTemplate(template);
+        setEditableExercises(patch.exercises);
+        setEditableStructure(patch.structure);
+        setAppliedTemplateId(patch.templateId);
+        setHasChanges(true);
+        setPendingTemplate(null);
+        setShowTemplatePicker(false);
+    };
+
+    const handleConfirmReplace = () => {
+        if (pendingTemplate) {
+            applyTemplateNow(pendingTemplate);
+        }
+    };
+
+    // Phase 16C: Remove template reference (keeps exercises)
+    const handleRemoveTemplate = () => {
+        setAppliedTemplateId(undefined);
+        setHasChanges(true);
+        setShowRemoveConfirm(false);
+    };
+
+    // Phase 16C: Undo last apply
+    const handleUndo = () => {
+        if (undoSnapshot) {
+            setEditableExercises(undoSnapshot.exercises);
+            setEditableStructure(undoSnapshot.structure);
+            setAppliedTemplateId(undoSnapshot.templateId);
+            setUndoSnapshot(null);
+            setHasChanges(true);
+        }
+    };
+
     // Save
     const handleSave = () => {
-        onSave(editableExercises);
+        onSave(editableExercises, editableStructure, appliedTemplateId);
         setHasChanges(false);
     };
 
@@ -134,7 +215,7 @@ function SessionEditor({ session, onClose, onSave, onSaveAndStart, onReschedule 
             setSaveError('Añade al menos un ejercicio antes de iniciar la sesión.');
             return;
         }
-        onSaveAndStart(editableExercises);
+        onSaveAndStart(editableExercises, editableStructure, appliedTemplateId);
     };
 
     return (
@@ -148,6 +229,30 @@ function SessionEditor({ session, onClose, onSave, onSaveAndStart, onReschedule 
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
+                    {/* Phase 16C: Template info badge */}
+                    {appliedTemplateName && (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-[var(--color-accent-gold)]/10 text-[var(--color-accent-gold)] border border-[var(--color-accent-gold)]/20">
+                            📎 {appliedTemplateName}
+                        </span>
+                    )}
+                    {/* Phase 16C: Undo button */}
+                    {isCoach && undoSnapshot && (
+                        <AuraButton variant="ghost" size="sm" onClick={handleUndo}>
+                            ↩️ Deshacer
+                        </AuraButton>
+                    )}
+                    {/* Phase 16C: Remove template button */}
+                    {isCoach && appliedTemplateId && (
+                        <AuraButton variant="ghost" size="sm" onClick={() => setShowRemoveConfirm(true)}>
+                            ✕ Quitar
+                        </AuraButton>
+                    )}
+                    {/* Phase 16A/C: Apply/Change Template - Coach only */}
+                    {isCoach && (
+                        <AuraButton variant="ghost" onClick={() => setShowTemplatePicker(true)}>
+                            📎 {appliedTemplateId ? 'Cambiar plantilla' : 'Aplicar plantilla'}
+                        </AuraButton>
+                    )}
                     {canReschedule && (
                         <AuraButton variant="ghost" onClick={() => setShowReschedule(true)}>
                             🗓 Reprogramar
@@ -306,6 +411,58 @@ function SessionEditor({ session, onClose, onSave, onSaveAndStart, onReschedule 
                 checkDuplicate={checkRescheduleDuplicate}
                 duplicateWarning="Ya existe una sesión para este atleta en esa hora."
             />
+
+            {/* Phase 16A: Template Picker Modal */}
+            <TemplatePickerModal
+                isOpen={showTemplatePicker}
+                onClose={() => setShowTemplatePicker(false)}
+                onSelect={handleApplyTemplate}
+            />
+
+            {/* Phase 16A: Confirm Replace Dialog */}
+            <Modal
+                isOpen={!!pendingTemplate}
+                onClose={() => setPendingTemplate(null)}
+                title="⚠️ Reemplazar ejercicios"
+                size="sm"
+                footer={
+                    <>
+                        <AuraButton variant="ghost" onClick={() => setPendingTemplate(null)}>
+                            Cancelar
+                        </AuraButton>
+                        <AuraButton variant="gold" onClick={handleConfirmReplace}>
+                            Sí, reemplazar
+                        </AuraButton>
+                    </>
+                }
+            >
+                <p className="text-sm text-gray-300">
+                    Esta sesión ya tiene {editableExercises.length} ejercicio(s).
+                    ¿Deseas reemplazarlos con los de la plantilla <strong className="text-white">"{pendingTemplate?.name}"</strong>?
+                </p>
+            </Modal>
+
+            {/* Phase 16C: Remove Template Confirmation */}
+            <Modal
+                isOpen={showRemoveConfirm}
+                onClose={() => setShowRemoveConfirm(false)}
+                title="✕ Quitar plantilla"
+                size="sm"
+                footer={
+                    <>
+                        <AuraButton variant="ghost" onClick={() => setShowRemoveConfirm(false)}>
+                            Cancelar
+                        </AuraButton>
+                        <AuraButton variant="secondary" onClick={handleRemoveTemplate}>
+                            Sí, quitar
+                        </AuraButton>
+                    </>
+                }
+            >
+                <p className="text-sm text-gray-300">
+                    Se eliminará la referencia a la plantilla. Los ejercicios actuales se mantendrán.
+                </p>
+            </Modal>
         </div>
     );
 }
@@ -390,13 +547,19 @@ export function SessionBuilder({ editSessionId, editMode }: SessionBuilderProps)
     }, [searchParams, setSearchParams]);
 
     // Handle save session (with reserved -> planned promotion)
-    const handleSaveSession = useCallback((exercises: ExerciseEntry[]) => {
+    const handleSaveSession = useCallback((
+        exercises: ExerciseEntry[],
+        structure?: WorkoutSession['structure'],
+        templateId?: string
+    ) => {
         if (sessionToEdit) {
             const hasExercises = exercises.length > 0;
             const shouldPromote = sessionToEdit.status === 'reserved' && hasExercises;
 
             updateSession(sessionToEdit.id, {
                 exercises,
+                structure, // Phase 16A: Persist structure from applied template
+                templateId, // Phase 16B: Track which template was applied
                 ...(shouldPromote ? { status: 'planned' as const } : {}),
                 updatedAt: new Date().toISOString(),
             });
@@ -404,11 +567,17 @@ export function SessionBuilder({ editSessionId, editMode }: SessionBuilderProps)
     }, [sessionToEdit, updateSession]);
 
     // Handle save and start (always promote to planned before starting)
-    const handleSaveAndStart = useCallback((exercises: ExerciseEntry[]) => {
+    const handleSaveAndStart = useCallback((
+        exercises: ExerciseEntry[],
+        structure?: WorkoutSession['structure'],
+        templateId?: string
+    ) => {
         if (sessionToEdit) {
             // Always set to planned when starting (handles both reserved and planned cases)
             updateSession(sessionToEdit.id, {
                 exercises,
+                structure, // Phase 16A: Persist structure from applied template
+                templateId, // Phase 16B: Track which template was applied
                 status: 'planned', // Ensure it's planned before starting
                 updatedAt: new Date().toISOString(),
             });
@@ -487,28 +656,13 @@ export function SessionBuilder({ editSessionId, editMode }: SessionBuilderProps)
         if (newSession.templateId) {
             const template = templates.find(t => t.id === newSession.templateId);
             if (template) {
-                sessionStructure = template.structure
-                    ? { ...template.structure, id: `structure-${crypto.randomUUID()}` }
+                // Phase 16C: Use unified patch function
+                const patch = materializeSessionPatchFromTemplate(template);
+                sessionExercises = patch.exercises;
+                // Use template structure if available, otherwise use default
+                sessionStructure = patch.structure
+                    ? { ...patch.structure, id: `structure-${crypto.randomUUID()}` }
                     : sessionStructure;
-
-                const defaultBlockId = sessionStructure.blocks[0]?.id || DEFAULT_BLOCK_ID;
-
-                sessionExercises = template.exercises.map((te, index) => ({
-                    id: crypto.randomUUID(),
-                    exerciseId: te.exerciseId,
-                    order: index,
-                    blockId: defaultBlockId,
-                    sets: Array.from({ length: te.defaultSets }, (_, i) => ({
-                        id: crypto.randomUUID(),
-                        setNumber: i + 1,
-                        type: 'working' as const,
-                        targetReps: te.defaultReps,
-                        targetWeight: te.defaultWeight,
-                        restSeconds: te.restSeconds,
-                        isCompleted: false,
-                        blockId: defaultBlockId,
-                    })),
-                }));
             }
         }
 

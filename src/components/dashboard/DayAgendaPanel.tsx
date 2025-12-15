@@ -14,6 +14,7 @@ import { Modal } from '../ui/Modal';
 import { AuraButton, AuraBadge, AuraEmptyState } from '../ui/aura';
 import { useAthletes, useSessions } from '../../store/store';
 import { useTrainingStore } from '../../store';
+import { useActorScope } from '../../hooks/useActorScope';
 import { HOUR_SLOTS, toScheduledDate, formatDisplayDate } from '../scheduling/constants';
 
 // ============================================
@@ -37,6 +38,9 @@ export function DayAgendaPanel({ isOpen, onClose, selectedDate, initialAthleteId
     const sessions = useSessions();
     const addSession = useTrainingStore(state => state.addSession);
 
+    // Phase 18: Actor scope for athlete data isolation
+    const { isAthlete, actorAthleteId } = useActorScope();
+
     // State
     const [selectedAthleteId, setSelectedAthleteId] = useState<string>('');
     const [selectedTime, setSelectedTime] = useState<string | null>(null);
@@ -52,12 +56,15 @@ export function DayAgendaPanel({ isOpen, onClose, selectedDate, initialAthleteId
         }
     }, [isOpen]);
 
-    // Phase 12D: Pre-select athlete from Calendar filter when opening
+    // Phase 18: Force athlete ID for athlete role
     useEffect(() => {
-        if (isOpen && initialAthleteId && !selectedAthleteId) {
+        if (isAthlete && actorAthleteId) {
+            setSelectedAthleteId(actorAthleteId);
+        } else if (isOpen && initialAthleteId && !selectedAthleteId) {
+            // Phase 12D: Pre-select for coach from Calendar filter
             setSelectedAthleteId(initialAthleteId);
         }
-    }, [isOpen, initialAthleteId, selectedAthleteId]);
+    }, [isOpen, initialAthleteId, selectedAthleteId, isAthlete, actorAthleteId]);
 
     // Active athletes only
     const activeAthletes = useMemo(() =>
@@ -164,10 +171,12 @@ export function DayAgendaPanel({ isOpen, onClose, selectedDate, initialAthleteId
             title={`📅 ${formatDisplayDate(selectedDate)}`}
             size="lg"
             fullScreenOnMobile
+            disableContentScroll // Phase 14A: Delegate scroll to child
         >
-            <div className="space-y-4">
-                {/* Athlete Selector */}
-                <div className="space-y-2">
+            {/* Phase 14A: Flex container, h-full for proper scroll delegation */}
+            <div className="flex flex-col h-full min-h-0">
+                {/* Athlete Selector - Phase 14A: Fixed header, shrink-0 */}
+                <div className="shrink-0 space-y-2">
                     <label className="text-xs text-gray-400 uppercase tracking-wider">
                         Atleta <span className="text-red-400">*</span>
                     </label>
@@ -183,11 +192,16 @@ export function DayAgendaPanel({ isOpen, onClose, selectedDate, initialAthleteId
                                 onClick: handleCreateAthlete,
                             }}
                         />
+                    ) : isAthlete ? (
+                        /* Phase 18: Show fixed athlete for athlete role */
+                        <div className="w-full px-3 py-3 min-h-[44px] bg-[#1A1A1A] border border-[#2A2A2A] rounded-lg text-white text-sm">
+                            👤 {activeAthletes.find(a => a.id === actorAthleteId)?.name || 'Mi cuenta'}
+                        </div>
                     ) : (
                         <select
                             value={selectedAthleteId}
                             onChange={(e) => setSelectedAthleteId(e.target.value)}
-                            className="w-full px-3 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-lg text-white text-sm focus:outline-none focus:border-[#C5A572]"
+                            className="w-full px-3 py-3 min-h-[44px] bg-[#1A1A1A] border border-[#2A2A2A] rounded-lg text-white text-sm focus:outline-none focus:border-[#C5A572]"
                         >
                             <option value="">Seleccionar atleta...</option>
                             {activeAthletes.map(athlete => (
@@ -201,14 +215,14 @@ export function DayAgendaPanel({ isOpen, onClose, selectedDate, initialAthleteId
 
                 {/* Validation message */}
                 {!selectedAthleteId && selectedTime && (
-                    <div className="p-3 rounded-lg bg-amber-900/20 border border-amber-700/50 text-amber-300 text-sm">
+                    <div className="shrink-0 p-3 rounded-lg bg-amber-900/20 border border-amber-700/50 text-amber-300 text-sm">
                         ⚠️ Selecciona un atleta para continuar.
                     </div>
                 )}
 
                 {/* Duplicate Warning */}
                 {showDuplicateWarning && (
-                    <div className="p-4 rounded-lg bg-amber-900/30 border border-amber-600 text-amber-200 text-sm space-y-3">
+                    <div className="shrink-0 p-4 rounded-lg bg-amber-900/30 border border-amber-600 text-amber-200 text-sm space-y-3">
                         <div className="flex items-start gap-2">
                             <span className="text-amber-400">⚠️</span>
                             <div>
@@ -219,15 +233,17 @@ export function DayAgendaPanel({ isOpen, onClose, selectedDate, initialAthleteId
                         <div className="flex gap-2 justify-end">
                             <AuraButton
                                 variant="secondary"
-                                size="sm"
+                                size="md"
                                 onClick={() => setShowDuplicateWarning(false)}
+                                className="min-h-[44px]"
                             >
                                 Cancelar
                             </AuraButton>
                             <AuraButton
                                 variant="gold"
-                                size="sm"
+                                size="md"
                                 onClick={handleDuplicateConfirm}
+                                className="min-h-[44px]"
                             >
                                 Sí, continuar
                             </AuraButton>
@@ -235,14 +251,14 @@ export function DayAgendaPanel({ isOpen, onClose, selectedDate, initialAthleteId
                     </div>
                 )}
 
-                {/* Hour Slots - PHASE 12E: Scroll containment */}
-                <div className="flex-1 flex flex-col min-h-0 -mx-4 md:mx-0">
-                    <label className="text-xs text-gray-400 uppercase tracking-wider shrink-0 px-4 md:px-0 pb-2">
+                {/* Hour Slots - Phase 14A: Single scroll owner */}
+                <div className="flex-1 flex flex-col min-h-0">
+                    <label className="text-xs text-gray-400 uppercase tracking-wider shrink-0 pb-2">
                         Horario
                     </label>
 
-                    {/* Single scroll owner with overscroll-contain to prevent scroll chaining */}
-                    <div className="flex-1 overflow-y-auto overscroll-contain space-y-2 px-4 md:px-0 md:max-h-[400px] md:flex-none">
+                    {/* Single scroll owner with overscroll-contain */}
+                    <div className="flex-1 overflow-y-auto overscroll-contain space-y-2 -mx-4 px-4">
                         {HOUR_SLOTS.map(slot => {
                             const slotSessions = getSlotSessions(slot.time);
                             const hasSession = slotSessions.length > 0;
@@ -312,18 +328,18 @@ export function DayAgendaPanel({ isOpen, onClose, selectedDate, initialAthleteId
                     </div>
                 </div>
 
-                {/* Selected info */}
+                {/* Selected info - Phase 14A: shrink-0 */}
                 {selectedAthleteId && (
-                    <div className="pt-3 border-t border-[#2A2A2A] text-xs text-gray-500">
+                    <div className="shrink-0 pt-3 border-t border-[#2A2A2A] text-xs text-gray-500">
                         <AuraBadge variant="default">
                             👤 {activeAthletes.find(a => a.id === selectedAthleteId)?.name}
                         </AuraBadge>
                     </div>
                 )}
 
-                {/* Day summary */}
+                {/* Day summary - Phase 14A: shrink-0 */}
                 {daySessions.length > 0 && (
-                    <div className="pt-3 border-t border-[#2A2A2A] text-xs text-gray-500">
+                    <div className="shrink-0 pt-3 border-t border-[#2A2A2A] text-xs text-gray-500">
                         {daySessions.length} sesión(es) programada(s) para este día
                     </div>
                 )}

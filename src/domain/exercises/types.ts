@@ -40,6 +40,35 @@ export type MuscleGroup =
 
 export type BodyRegion = 'upper' | 'lower' | 'full' | 'core';
 
+// ============================================
+// PHASE 17A: EQUIPMENT, MECHANICS, DIFFICULTY
+// ============================================
+
+/**
+ * ExerciseEquipment - Typed equipment categories
+ * Replaces freeform string for consistent filtering.
+ */
+export type ExerciseEquipment =
+    | 'barbell'
+    | 'dumbbell'
+    | 'kettlebell'
+    | 'machine'
+    | 'cable'
+    | 'bodyweight'
+    | 'bands'
+    | 'smith'
+    | 'other';
+
+/**
+ * ExerciseMechanics - Compound vs Isolation
+ */
+export type ExerciseMechanics = 'compound' | 'isolation';
+
+/**
+ * ExerciseDifficulty - Skill/complexity level
+ */
+export type ExerciseDifficulty = 'beginner' | 'intermediate' | 'advanced';
+
 export interface Exercise {
     id: string;
     name: string;
@@ -49,7 +78,14 @@ export interface Exercise {
     bodyRegion?: BodyRegion;
     category?: string; // Legacy
     muscleGroups?: string[]; // Legacy
-    equipment?: string;
+
+    // Phase 17A: Typed equipment (was string)
+    equipment?: ExerciseEquipment;
+
+    // Phase 17A: New metadata fields
+    mechanics?: ExerciseMechanics;
+    difficulty?: ExerciseDifficulty;
+
     tags?: string[];
     isCustom?: boolean;
     isPrimaryOneRM?: boolean;

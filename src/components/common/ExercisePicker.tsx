@@ -17,7 +17,19 @@ import { useTrainingStore, useExercises } from '../../store/store';
 import { Modal, Input } from '../ui';
 import { AuraButton, AuraBadge, AuraEmptyState, AuraPanel } from '../ui/aura';
 import type { MovementPattern, MuscleGroup } from '../../core/exercises/exercise.model';
-import type { Exercise } from '../../types/types';
+import type { Exercise, ExerciseEquipment } from '../../types/types';
+
+// Phase 17B: Equipment filter options
+const EQUIPMENT_FILTER_OPTIONS: { value: ExerciseEquipment; label: string; icon: string }[] = [
+    { value: 'barbell', label: 'Barra', icon: '🏋️' },
+    { value: 'dumbbell', label: 'Mancuernas', icon: '🔩' },
+    { value: 'kettlebell', label: 'KB', icon: '🔔' },
+    { value: 'machine', label: 'Máquina', icon: '⚙️' },
+    { value: 'cable', label: 'Polea', icon: '🔗' },
+    { value: 'bodyweight', label: 'BW', icon: '🤸' },
+    { value: 'bands', label: 'Bandas', icon: '🎗️' },
+    { value: 'smith', label: 'Smith', icon: '🔧' },
+];
 
 // ============================================
 // PROPS
@@ -64,6 +76,7 @@ export function ExercisePicker({
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedPattern, setSelectedPattern] = useState<MovementPattern | 'all'>('all');
     const [selectedMuscleGroup, setSelectedMuscleGroup] = useState<MuscleGroup | 'all'>('all');
+    const [selectedEquipment, setSelectedEquipment] = useState<ExerciseEquipment | 'all'>('all'); // Phase 17B
     const [showCreateModal, setShowCreateModal] = useState(false);
 
     // Store
@@ -135,8 +148,13 @@ export function ExercisePicker({
             result = result.filter((e) => e.name.toLowerCase().includes(lower));
         }
 
+        // Phase 17B: Equipment filter
+        if (selectedEquipment !== 'all') {
+            result = result.filter((e) => e.equipment === selectedEquipment);
+        }
+
         return result;
-    }, [exercises, selectedPattern, selectedMuscleGroup, searchTerm]);
+    }, [exercises, selectedPattern, selectedMuscleGroup, searchTerm, selectedEquipment]);
 
     // Selected exercise
     const selectedExercise = useMemo(() => {
@@ -157,6 +175,7 @@ export function ExercisePicker({
         setSearchTerm('');
         setSelectedPattern('all');
         setSelectedMuscleGroup('all');
+        setSelectedEquipment('all'); // Phase 17B
     }, []);
 
     // Size classes
@@ -259,6 +278,31 @@ export function ExercisePicker({
                                 ))}
                             </div>
                         )}
+                    </div>
+
+                    {/* Phase 17B: Equipment Filter */}
+                    <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-[#333]">
+                        <button
+                            onClick={() => setSelectedEquipment('all')}
+                            className={`px-2 py-1 rounded text-xs whitespace-nowrap transition-colors ${selectedEquipment === 'all'
+                                ? 'bg-cyan-600 text-white'
+                                : 'bg-[#1A1A1A] text-gray-400 hover:bg-[#2A2A2A]'
+                                }`}
+                        >
+                            🛠️ Todos
+                        </button>
+                        {EQUIPMENT_FILTER_OPTIONS.map((eq) => (
+                            <button
+                                key={eq.value}
+                                onClick={() => setSelectedEquipment(eq.value)}
+                                className={`px-2 py-1 rounded text-xs whitespace-nowrap transition-colors ${selectedEquipment === eq.value
+                                    ? 'bg-cyan-600 text-white'
+                                    : 'bg-[#1A1A1A] text-gray-400 hover:bg-[#2A2A2A]'
+                                    }`}
+                            >
+                                {eq.icon} {eq.label}
+                            </button>
+                        ))}
                     </div>
 
                     {/* Exercise List */}

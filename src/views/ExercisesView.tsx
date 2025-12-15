@@ -18,7 +18,7 @@ import {
     AuraEmptyState,
 } from '../components/ui/aura';
 import { useTrainingStore, useExercises } from '../store/store';
-import type { Exercise, MuscleGroup, MovementPattern } from '../types/types';
+import type { Exercise, MuscleGroup, MovementPattern, ExerciseEquipment, ExerciseMechanics, ExerciseDifficulty } from '../types/types';
 
 export function ExercisesView() {
     const exercises = useExercises();
@@ -257,12 +257,42 @@ interface ExerciseFormModalProps {
     onSave: (data: Omit<Exercise, 'id' | 'createdAt'>) => void;
 }
 
+// Phase 17B: Equipment options from enum
+const EQUIPMENT_OPTIONS: { value: ExerciseEquipment; label: string }[] = [
+    { value: 'barbell', label: 'Barra' },
+    { value: 'dumbbell', label: 'Mancuernas' },
+    { value: 'kettlebell', label: 'Kettlebell' },
+    { value: 'machine', label: 'Máquina' },
+    { value: 'cable', label: 'Polea/Cable' },
+    { value: 'bodyweight', label: 'Peso corporal' },
+    { value: 'bands', label: 'Bandas' },
+    { value: 'smith', label: 'Multipower' },
+    { value: 'other', label: 'Otro' },
+];
+
+// Phase 17B: Mechanics options
+const MECHANICS_OPTIONS: { value: ExerciseMechanics | ''; label: string }[] = [
+    { value: '', label: 'Sin especificar' },
+    { value: 'compound', label: 'Compuesto' },
+    { value: 'isolation', label: 'Aislamiento' },
+];
+
+// Phase 17B: Difficulty options
+const DIFFICULTY_OPTIONS: { value: ExerciseDifficulty | ''; label: string }[] = [
+    { value: '', label: 'Sin especificar' },
+    { value: 'beginner', label: 'Principiante' },
+    { value: 'intermediate', label: 'Intermedio' },
+    { value: 'advanced', label: 'Avanzado' },
+];
+
 function ExerciseFormModal({ isOpen, exercise, muscleGroupOptions, patternOptions, onClose, onSave }: ExerciseFormModalProps) {
     const [name, setName] = useState(exercise?.name || '');
     const [description, setDescription] = useState(exercise?.description || '');
     const [pattern, setPattern] = useState<MovementPattern>(exercise?.pattern || 'other');
     const [muscleGroup, setMuscleGroup] = useState<MuscleGroup>(exercise?.muscleGroup || 'other');
-    const [equipment, setEquipment] = useState(exercise?.equipment || '');
+    const [equipment, setEquipment] = useState<ExerciseEquipment>(exercise?.equipment || 'other');
+    const [mechanics, setMechanics] = useState<ExerciseMechanics | ''>(exercise?.mechanics || '');
+    const [difficulty, setDifficulty] = useState<ExerciseDifficulty | ''>(exercise?.difficulty || '');
     const [tags, setTags] = useState<string>(exercise?.tags?.join(', ') || '');
 
     const handleSave = () => {
@@ -272,8 +302,10 @@ function ExerciseFormModal({ isOpen, exercise, muscleGroupOptions, patternOption
             description: description.trim() || undefined,
             pattern,
             muscleGroup,
+            equipment, // Now strictly typed from Select
+            mechanics: mechanics || undefined,
+            difficulty: difficulty || undefined,
             tags: tags.split(',').map(t => t.trim()).filter(Boolean),
-            equipment: equipment.trim() || undefined,
             isCustom: true,
             updatedAt: new Date().toISOString(),
         });
@@ -317,12 +349,29 @@ function ExerciseFormModal({ isOpen, exercise, muscleGroupOptions, patternOption
                     />
                 </div>
 
-                <Input
+                {/* Phase 17B: Equipment Select (strict) */}
+                <Select
                     label="Equipment"
                     value={equipment}
-                    onChange={(e) => setEquipment(e.target.value)}
-                    placeholder="Barbell, dumbbells, machine..."
+                    onChange={(e) => setEquipment(e.target.value as ExerciseEquipment)}
+                    options={EQUIPMENT_OPTIONS}
                 />
+
+                {/* Phase 17B: Mechanics & Difficulty */}
+                <div className="grid grid-cols-2 gap-4">
+                    <Select
+                        label="Mechanics"
+                        value={mechanics}
+                        onChange={(e) => setMechanics(e.target.value as ExerciseMechanics | '')}
+                        options={MECHANICS_OPTIONS}
+                    />
+                    <Select
+                        label="Difficulty"
+                        value={difficulty}
+                        onChange={(e) => setDifficulty(e.target.value as ExerciseDifficulty | '')}
+                        options={DIFFICULTY_OPTIONS}
+                    />
+                </div>
 
                 <Input
                     label="Tags (comma separated)"
@@ -347,3 +396,4 @@ function ExerciseFormModal({ isOpen, exercise, muscleGroupOptions, patternOption
         </Modal>
     );
 }
+

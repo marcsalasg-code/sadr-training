@@ -23,6 +23,7 @@ import { useTrainingStore, useTemplates, useExercises } from '../store/store';
 import { useTemplateGenerator, useAIEnabled } from '../ai';
 import { useTrainingPlan } from '../hooks';
 import { getRecommendedTemplates, getTemplateBadge } from '../utils/templateHelpers';
+import { materializeSessionPatchFromTemplate } from '../domain/sessions/mappers';
 import type { WorkoutTemplate, TemplateExercise } from '../types/types';
 
 export function TemplatesView() {
@@ -321,34 +322,23 @@ export function TemplatesView() {
                     }}
                     template={templateForSession}
                     onConfirm={(athleteId) => {
-                        // Create session from template with selected athlete
-                        const sessionExercises = templateForSession.exercises.map((te, index) => ({
-                            id: crypto.randomUUID(),
-                            exerciseId: te.exerciseId,
-                            order: index,
-                            sets: Array.from({ length: te.defaultSets }, (_, i) => ({
-                                id: crypto.randomUUID(),
-                                setNumber: i + 1,
-                                type: 'working' as const,
-                                targetReps: te.defaultReps,
-                                targetWeight: te.defaultWeight,
-                                restSeconds: te.restSeconds,
-                                isCompleted: false,
-                            })),
-                        }));
+                        // Phase 16C: Use unified patch function
+                        const patch = materializeSessionPatchFromTemplate(templateForSession);
 
                         const session = addSession({
                             name: `${templateForSession.name} - ${new Date().toLocaleDateString('es-ES')}`,
                             athleteId: athleteId,
-                            templateId: templateForSession.id,
+                            templateId: patch.templateId,
                             status: 'planned',
-                            exercises: sessionExercises,
+                            exercises: patch.exercises,
+                            structure: patch.structure,
                             durationMinutes: templateForSession.estimatedDuration,
                         });
 
                         setShowAthleteSelector(false);
                         setTemplateForSession(null);
-                        navigate(`/sessions/live/${session.id}`);
+                        // Phase 16A: Navigate to editor instead of live session
+                        navigate(`/planning?tab=sessions&sessionId=${session.id}&mode=edit`);
                     }}
                 />
             )}

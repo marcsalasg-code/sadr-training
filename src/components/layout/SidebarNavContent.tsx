@@ -38,8 +38,8 @@ export function SidebarNavContent({ onNavigate, showLogo = false }: SidebarNavCo
                 </div>
             )}
 
-            {/* Navigation Groups */}
-            <nav className="flex-1 overflow-y-auto p-4 space-y-1">
+            {/* Navigation Groups - Phase 14C: Added pb-8 for safe area scroll */}
+            <nav className="flex-1 overflow-y-auto p-4 pb-8 space-y-1">
                 {navGroups.map((group) => (
                     <NavGroup key={group.title} group={group} onNavigate={handleClick} />
                 ))}
@@ -66,10 +66,10 @@ function NavGroup({ group, onNavigate }: { group: NavGroupRuntime; onNavigate: (
 }
 
 function NavItem({ item, onNavigate }: { item: NavItemRuntime; onNavigate: () => void }) {
-    // Consistent Aura styling - no special gold styling for Live Session
+    // Phase 14C: Aura Gold active style for better visibility
     const activeClass = item.isActive
-        ? 'text-white bg-[var(--color-bg-elevated)] border border-[var(--color-border)]'
-        : 'text-gray-400 hover:text-white hover:bg-[var(--color-bg-elevated)]';
+        ? 'text-[var(--color-accent-gold)] bg-[var(--color-accent-gold)]/10 border border-[var(--color-accent-gold)]/30'
+        : 'text-gray-400 hover:text-white hover:bg-[var(--color-bg-elevated)] border border-transparent';
 
     return (
         <Link

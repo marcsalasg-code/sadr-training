@@ -26,6 +26,7 @@ import { createAuthSlice, type AuthSlice } from './authSlice';
 // Import migrations
 import { migrateExerciseCatalog } from '../core/exercises/exercise.migration';
 import { migrateSessions, migrateTemplates } from '../core/sessions/sessionStructure.migration';
+import { normalizeExercises } from '../domain/exercises/normalizeExercise';
 
 // Import validation functions
 import { calculateSessionTotals } from '../domain/sessions/calculations';
@@ -243,9 +244,8 @@ export const useTrainingStore = create<TrainingStore>()(
                 anchorConfig: state.anchorConfig,
                 exerciseCategories: state.exerciseCategories,
                 trainingConfig: state.trainingConfig,
-                // Auth state (Phase 15)
-                currentUser: state.currentUser,
-                isAuthenticated: state.isAuthenticated,
+                // Auth state: Only persist configuration (PIN), NOT the active session
+                // Session must be re-established on reload for security
                 coachPin: state.coachPin,
                 // Note: usageEvents not persisted to save space
             }),
@@ -256,6 +256,11 @@ export const useTrainingStore = create<TrainingStore>()(
                     return;
                 }
                 if (!state) return;
+
+                // SECURITY: Force logout on rehydration (prevent persistent sessions)
+                // This guarantees the user sees the Login screen on reload
+                state.isAuthenticated = false;
+                state.currentUser = null;
 
                 // Check and run migrations by mutating state directly
                 // Note: We mutate the state object directly here because useTrainingStore
@@ -272,6 +277,13 @@ export const useTrainingStore = create<TrainingStore>()(
                         const migratedExercises = migrateExerciseCatalog(state.exercises);
                         // Direct mutation - safe in onRehydrateStorage
                         state.exercises = migratedExercises as typeof state.exercises;
+                        needsUpdate = true;
+                    }
+
+                    // Phase 17A: Normalize equipment strings to typed enum
+                    const normalizedExercises = normalizeExercises(state.exercises);
+                    if (normalizedExercises !== state.exercises) {
+                        state.exercises = normalizedExercises;
                         needsUpdate = true;
                     }
                 }

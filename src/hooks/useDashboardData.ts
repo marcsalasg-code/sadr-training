@@ -10,7 +10,8 @@
  */
 
 import { useMemo } from 'react';
-import { useSessions, useAthletes, useTemplates, useTrainingStore } from '../store/store';
+import { useAthletes, useTemplates, useTrainingStore } from '../store/store';
+import { useVisibleSessions } from './useVisibleSessions';
 import { useTrainingPlan } from './useTrainingPlan';
 import { getWeeklyIntensityFatigue } from '../core/analysis/metrics';
 import {
@@ -103,7 +104,8 @@ export interface UseDashboardDataReturn {
 // ============================================
 
 export function useDashboardData(): UseDashboardDataReturn {
-    const sessions = useSessions();
+    // Phase 18: Use role-filtered sessions for data isolation
+    const sessions = useVisibleSessions();
     const athletes = useAthletes();
     const templates = useTemplates();
     const { activePlan, weeklyAdherence, getAIRecommendations, todayPlan } = useTrainingPlan();

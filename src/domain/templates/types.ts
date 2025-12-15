@@ -5,6 +5,8 @@
  * No React/Zustand dependencies.
  */
 
+import type { TrainingType, SessionGoal } from '../sessions/types';
+
 // ============================================
 // TYPES
 // ============================================
@@ -41,6 +43,10 @@ export interface Template {
     usageCount?: number;
     createdAt: string;
     updatedAt: string;
+
+    // Phase 17B: Training taxonomy for inheritance
+    trainingType?: TrainingType;
+    sessionGoal?: SessionGoal;
 }
 
 // ============================================
@@ -101,6 +107,7 @@ export function searchTemplates(templates: Template[], query: string): Template[
 
 /**
  * Clone template for new session
+ * Phase 17B: Also copies trainingType and sessionGoal
  */
 export function cloneTemplateForSession(
     template: Template,
@@ -118,6 +125,8 @@ export function cloneTemplateForSession(
             isCompleted: boolean;
         }>;
     }>;
+    trainingType?: TrainingType;
+    sessionGoal?: SessionGoal;
 } {
     return {
         exercises: template.exercises.map((ex, idx) => ({
@@ -132,5 +141,7 @@ export function cloneTemplateForSession(
                 isCompleted: false,
             })),
         })),
+        trainingType: template.trainingType,
+        sessionGoal: template.sessionGoal,
     };
 }

@@ -31,3 +31,6 @@ export { SessionTimeline, type SessionTimelineProps } from './SessionTimeline';
 
 // Phase 2: Template/Session structure
 export { TemplatePreview } from './TemplatePreview';
+
+// Phase 16A: Template picker for session editor
+export { TemplatePickerModal } from './TemplatePickerModal';

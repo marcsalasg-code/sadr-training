@@ -79,9 +79,12 @@ export function createScheduledSessionFromTemplate(
     const sessionId = generateId();
     const now = new Date().toISOString();
 
+    // Determine default blockId from template structure if present
+    const defaultBlockId = template.structure?.blocks?.[0]?.id;
+
     // Clone template exercises to session exercises
     const exercises: ExerciseEntry[] = template.exercises.map((templateEx, exIdx) => {
-        const exerciseId = generateId();
+        const exerciseEntryId = generateId();
 
         // Create sets based on template defaults
         const sets: SetEntry[] = Array.from(
@@ -92,20 +95,20 @@ export function createScheduledSessionFromTemplate(
                 type: 'working' as const,
                 targetReps: templateEx.defaultReps,
                 targetWeight: templateEx.defaultWeight,
+                restSeconds: templateEx.restSeconds, // FIX: Map restSeconds from template
                 isCompleted: false,
-                // Inherit blockId if template has structure
-                blockId: undefined, // Will be set from block mapping if exists
+                blockId: defaultBlockId, // Inherit blockId from template structure
             })
         );
 
         return {
-            id: exerciseId,
+            id: exerciseEntryId,
             exerciseId: templateEx.exerciseId,
             order: templateEx.order ?? exIdx,
             sets,
             notes: templateEx.notes,
-            // Copy block reference if template uses blocks
-            blockId: undefined, // TODO: Map from template.structure if exists
+            restSeconds: templateEx.restSeconds, // FIX: Map restSeconds at exercise level
+            blockId: defaultBlockId, // Copy block reference from template structure
         };
     });
 
@@ -122,6 +125,138 @@ export function createScheduledSessionFromTemplate(
         notes: '',
         createdAt: now,
         updatedAt: now,
+    };
+}
+
+// ============================================
+// BLOCK ID RESOLUTION (Phase 16C)
+// ============================================
+
+interface ResolveBlockIdParams {
+    template: WorkoutTemplate;
+    templateExercise: TemplateExercise;
+    exerciseIndex: number;
+    defaultBlockId?: string;
+}
+
+/**
+ * Resolve block ID for a template exercise
+ * 
+ * PHASE 16C: Supports explicit mapping via templateExercise.blockId
+ * Priority:
+ * 1. Explicit blockId on templateExercise (if valid in structure)
+ * 2. Proportional distribution based on exercise index
+ * 3. undefined if no structure
+ */
+function resolveBlockIdForTemplateExercise({
+    template,
+    templateExercise,
+    exerciseIndex,
+    defaultBlockId,
+}: ResolveBlockIdParams): string | undefined {
+    // If override provided, use it
+    if (defaultBlockId) return defaultBlockId;
+
+    const blocks = template.structure?.blocks || [];
+    if (blocks.length === 0) return undefined;
+
+    // Phase 16C: Check for explicit blockId on template exercise (defensive runtime check)
+    const explicitBlockId = 'blockId' in templateExercise
+        ? (templateExercise as Record<string, unknown>).blockId as string | undefined
+        : undefined;
+
+    if (explicitBlockId && blocks.some(b => b.id === explicitBlockId)) {
+        return explicitBlockId;
+    }
+
+    // Fallback: proportional distribution
+    if (blocks.length === 1) return blocks[0].id;
+
+    const exercisesPerBlock = Math.ceil(template.exercises.length / blocks.length);
+    const blockIndex = Math.min(
+        Math.floor(exerciseIndex / exercisesPerBlock),
+        blocks.length - 1
+    );
+    return blocks[blockIndex]?.id;
+}
+
+// ============================================
+// EXERCISE MATERIALIZATION (Reusable helper)
+// ============================================
+
+/**
+ * Materialize exercises from a template
+ * 
+ * PHASE 16A: Single source of truth for template → exercises conversion.
+ * PHASE 16B: Proper block distribution based on template structure.
+ * PHASE 16C: Explicit blockId mapping support + consistency enforcement.
+ * Used by all entrypoints (TemplatesView, SessionBuilder, ApplyTemplate).
+ * 
+ * @param template - The workout template
+ * @param defaultBlockId - Optional block ID to override all exercises/sets
+ * @returns Array of ExerciseEntry ready for a session
+ */
+export function materializeExercisesFromTemplate(
+    template: WorkoutTemplate,
+    defaultBlockId?: string
+): ExerciseEntry[] {
+    return template.exercises.map((templateEx, exIdx) => {
+        const exerciseEntryId = generateId();
+        const blockId = resolveBlockIdForTemplateExercise({
+            template,
+            templateExercise: templateEx,
+            exerciseIndex: exIdx,
+            defaultBlockId,
+        });
+
+        const sets: SetEntry[] = Array.from(
+            { length: templateEx.defaultSets || 3 },
+            (_, setIdx) => ({
+                id: generateId(),
+                setNumber: setIdx + 1,
+                type: 'working' as const,
+                targetReps: templateEx.defaultReps,
+                targetWeight: templateEx.defaultWeight,
+                restSeconds: templateEx.restSeconds,
+                isCompleted: false,
+                blockId,
+            })
+        );
+
+        return {
+            id: exerciseEntryId,
+            exerciseId: templateEx.exerciseId,
+            order: templateEx.order ?? exIdx,
+            sets,
+            notes: templateEx.notes,
+            restSeconds: templateEx.restSeconds,
+            blockId,
+        };
+    });
+}
+
+// ============================================
+// SESSION PATCH (Phase 16C)
+// ============================================
+
+/**
+ * Materialize a session patch from a template
+ * 
+ * PHASE 16C: Single function to get all template data for session update.
+ * Prevents divergence by centralizing what gets applied from template.
+ * 
+ * @param template - The workout template
+ * @returns Patch object with exercises, structure, and templateId
+ */
+export function materializeSessionPatchFromTemplate(template: WorkoutTemplate): {
+    exercises: ExerciseEntry[];
+    structure: WorkoutTemplate['structure'];
+    templateId: string;
+} {
+    return {
+        exercises: materializeExercisesFromTemplate(template),
+        structure: template.structure,
+        templateId: template.id,
     };
 }
 

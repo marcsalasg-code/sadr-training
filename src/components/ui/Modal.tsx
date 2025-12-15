@@ -5,9 +5,10 @@
  * any stacking contexts (transform, z-index, overflow) from parent components.
  */
 
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from './Button';
+import { lockBodyScroll, unlockBodyScroll } from '../../core/dom/scrollLock';
 
 interface ModalProps {
     isOpen: boolean;
@@ -17,6 +18,8 @@ interface ModalProps {
     footer?: ReactNode;
     size?: 'sm' | 'md' | 'lg';
     fullScreenOnMobile?: boolean;
+    /** Phase 14A: When true, disables scroll on content wrapper, delegating scroll to child */
+    disableContentScroll?: boolean;
 }
 
 const sizeClasses = {
@@ -25,27 +28,23 @@ const sizeClasses = {
     lg: 'max-w-2xl',
 };
 
-export function Modal({ isOpen, onClose, title, children, footer, size = 'md', fullScreenOnMobile = false }: ModalProps) {
-    // Store previous overflow value for proper cleanup
-    const previousOverflowRef = useRef<string>('');
-
-    // Handle ESC key and scroll lock
+export function Modal({ isOpen, onClose, title, children, footer, size = 'md', fullScreenOnMobile = false, disableContentScroll = false }: ModalProps) {
+    // Handle ESC key and scroll lock (Phase 14C: use ref-counted helper)
     useEffect(() => {
         const handleEscape = (e: KeyboardEvent) => {
             if (e.key === 'Escape') onClose();
         };
 
         if (isOpen) {
-            // Save current overflow and lock scroll
-            previousOverflowRef.current = document.body.style.overflow;
-            document.body.style.overflow = 'hidden';
+            lockBodyScroll();
             document.addEventListener('keydown', handleEscape);
         }
 
         return () => {
             document.removeEventListener('keydown', handleEscape);
-            // Restore previous overflow value
-            document.body.style.overflow = previousOverflowRef.current;
+            if (isOpen) {
+                unlockBodyScroll();
+            }
         };
     }, [isOpen, onClose]);
 
@@ -90,8 +89,11 @@ export function Modal({ isOpen, onClose, title, children, footer, size = 'md', f
                     </button>
                 </div>
 
-                {/* Content */}
-                <div className={`p-4 md:p-6 overflow-y-auto ${fullScreenOnMobile ? 'flex-1' : 'max-h-[60vh]'}`}>
+                {/* Content - Phase 14A: Support disableContentScroll for nested scroll control */}
+                <div className={`p-4 md:p-6 ${disableContentScroll
+                    ? 'overflow-hidden flex flex-col min-h-0'
+                    : 'overflow-y-auto'
+                    } ${fullScreenOnMobile ? 'flex-1' : 'max-h-[60vh]'}`}>
                     {children}
                 </div>
 

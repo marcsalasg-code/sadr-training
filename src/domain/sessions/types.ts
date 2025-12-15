@@ -103,6 +103,36 @@ export type SessionStatus = 'reserved' | 'planned' | 'in_progress' | 'completed'
 export type SessionOrigin = 'plan' | 'manual' | 'ai_suggestion';
 
 // ============================================
+// TRAINING TYPE & SESSION GOAL (Phase 17A)
+// ============================================
+
+/**
+ * TrainingType - Modality/style of training (session-level)
+ * Describes the overall approach or discipline.
+ */
+export type TrainingType =
+    | 'strength'        // Powerlifting / Strongman style
+    | 'hypertrophy'     // Bodybuilding / muscle growth focus
+    | 'power'           // Olympic lifting / explosive
+    | 'calisthenics'    // Bodyweight training
+    | 'functional'      // Functional fitness / CrossFit-style
+    | 'conditioning'    // Metabolic / HIIT
+    | 'mobility'        // Recovery / flexibility
+    | 'hybrid'          // Mixed approaches
+    | 'other';          // Uncategorized
+
+/**
+ * SessionGoal - Intent of today's session
+ * Describes the specific objective for this workout.
+ */
+export type SessionGoal =
+    | 'heavy_load'      // High intensity (>85% 1RM)
+    | 'volume'          // Volume accumulation
+    | 'technique'       // Skill / technique focus
+    | 'recovery'        // Active recovery / deload
+    | 'assessment';     // PR testing / 1RM assessment
+
+// ============================================
 // MULTI-ATHLETE DATA
 // ============================================
 
@@ -153,6 +183,10 @@ export interface WorkoutSession {
 
     // Session structure
     structure?: SessionStructure;
+
+    // Phase 17A: Training taxonomy
+    trainingType?: TrainingType;
+    sessionGoal?: SessionGoal;
 }
 
 // Re-export SessionStructure for convenience
