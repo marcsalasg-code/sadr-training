@@ -17,6 +17,7 @@ import {
 
 // Lazy load views
 const LoginView = lazy(() => import('./views/LoginView'));
+const CloudLoginView = lazy(() => import('./views/auth/CloudLoginView'));
 const AthleteHomeView = lazy(() => import('./views/AthleteHomeView'));
 const AnalyticsView = lazy(() => import('./views/AnalyticsView').then(m => ({ default: m.AnalyticsView })));
 const PlanningView = lazy(() => import('./views/PlanningView').then(m => ({ default: m.PlanningView })));
@@ -40,6 +41,13 @@ function App() {
         <Route path="/login" element={
           <Suspense fallback={<LoadingFallback />}>
             <LoginView />
+          </Suspense>
+        } />
+
+        {/* Public Route: Cloud Login */}
+        <Route path="/cloud-login" element={
+          <Suspense fallback={<LoadingFallback />}>
+            <CloudLoginView />
           </Suspense>
         } />
 

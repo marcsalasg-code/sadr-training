@@ -22,6 +22,7 @@ import { createSettingsSlice, defaultSettings, type SettingsSlice } from './sett
 import { createLabSlice, type LabSlice } from './labSlice';
 import { createConfigSlice, type ConfigSlice } from './configSlice';
 import { createAuthSlice, type AuthSlice } from './authSlice';
+import { createSyncSlice, type SyncSlice } from './syncSlice';
 
 // Import migrations
 import { migrateExerciseCatalog } from '../core/exercises/exercise.migration';
@@ -63,6 +64,7 @@ export type TrainingStore =
     & LabSlice
     & ConfigSlice
     & AuthSlice
+    & SyncSlice
     & DataManagementSlice;
 
 // ============================================
@@ -82,6 +84,7 @@ export const useTrainingStore = create<TrainingStore>()(
             ...createLabSlice(set, get, api),
             ...createConfigSlice(set, get, api),
             ...createAuthSlice(set, get, api),
+            ...createSyncSlice(set, get, api),
 
             // === DATA MANAGEMENT ===
             exportData: () => {
@@ -247,6 +250,10 @@ export const useTrainingStore = create<TrainingStore>()(
                 // Auth state: Only persist configuration (PIN), NOT the active session
                 // Session must be re-established on reload for security
                 coachPin: state.coachPin,
+                // Sync state (Phase 22B)
+                lastCloudPullAt: state.lastCloudPullAt,
+                lastCloudPushAt: state.lastCloudPushAt,
+                lastLocalMutationAt: state.lastLocalMutationAt,
                 // Note: usageEvents not persisted to save space
             }),
             // Run migrations on rehydration

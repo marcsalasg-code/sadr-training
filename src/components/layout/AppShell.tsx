@@ -5,6 +5,7 @@
  * Phase 13: Mobile sidebar now uses shared SidebarNavContent component.
  * Off-canvas, closed by default, with overlay + auto-close on navigation.
  * Phase 21: MobileBottomNav is now role-aware.
+ * Phase 22B.2: Coach auto-sync mounted here.
  */
 
 import { useState, useEffect } from 'react';
@@ -17,12 +18,15 @@ import { ContentArea } from './ContentArea';
 import { ErrorBoundary } from '../common/ErrorBoundary';
 import { useActorScope } from '../../hooks/useActorScope';
 import { useSessions, useTrainingStore } from '../../store/store';
+import { useAutoCloudSync } from '../../hooks/useAutoCloudSync';
 
 interface AppShellProps {
     children: React.ReactNode;
 }
 
 export function AppShell({ children }: AppShellProps) {
+    // Phase 22B.2: Auto-sync for coach users
+    useAutoCloudSync();
     // Controlled state for mobile menu
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const location = useLocation();

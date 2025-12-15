@@ -21,3 +21,6 @@ export { useVisibleAthletes, useMyProfile } from './useVisibleAthletes';
 // Phase 18: Actor Scope
 export { useActorScope, type ActorScope } from './useActorScope';
 
+// Phase 22B: Cloud Bootstrap
+export { useCloudBootstrap, type BootstrapStatus, type CloudBootstrapState } from './useCloudBootstrap';
+

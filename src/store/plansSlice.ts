@@ -1,5 +1,7 @@
 /**
  * Plans Slice - Zustand slice for training plan management
+ * 
+ * Phase 22B.1: Instrumented with dirty tracking (markLocalMutation)
  */
 
 import type { StateCreator } from 'zustand';
@@ -11,6 +13,15 @@ import type { TrainingPlan, UUID } from '../types/types';
 
 const generateId = (): UUID => crypto.randomUUID();
 const now = (): string => new Date().toISOString();
+
+// Helper to safely call markLocalMutation from combined store
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const markDirty = (get: () => any) => {
+    const store = get();
+    if (typeof store.markLocalMutation === 'function') {
+        store.markLocalMutation();
+    }
+};
 
 // ============================================
 // SLICE INTERFACE
@@ -48,6 +59,7 @@ export const createPlansSlice: StateCreator<
             updatedAt: now(),
         };
         set((state) => ({ trainingPlans: [...state.trainingPlans, plan] }));
+        markDirty(get); // Phase 22B.1: Track local mutation
         return plan;
     },
 
@@ -57,6 +69,7 @@ export const createPlansSlice: StateCreator<
                 p.id === id ? { ...p, ...updates, updatedAt: now() } : p
             ),
         }));
+        markDirty(get); // Phase 22B.1: Track local mutation
     },
 
     deleteTrainingPlan: (id) => {
@@ -64,12 +77,14 @@ export const createPlansSlice: StateCreator<
             trainingPlans: state.trainingPlans.filter((p) => p.id !== id),
             activeTrainingPlanId: state.activeTrainingPlanId === id ? null : state.activeTrainingPlanId,
         }));
+        markDirty(get); // Phase 22B.1: Track local mutation
     },
 
     getTrainingPlan: (id) => get().trainingPlans.find((p) => p.id === id),
 
     setActiveTrainingPlan: (id) => {
         set({ activeTrainingPlanId: id });
+        markDirty(get); // Phase 22B.1: Track local mutation (activeTrainingPlanId is persisted)
     },
 
     getActiveTrainingPlan: () => {
@@ -79,3 +94,4 @@ export const createPlansSlice: StateCreator<
             : undefined;
     },
 });
+

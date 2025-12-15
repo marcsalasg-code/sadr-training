@@ -1,5 +1,7 @@
 /**
  * Templates Slice - Zustand slice for workout template management
+ * 
+ * Phase 22B.1: Instrumented with dirty tracking (markLocalMutation)
  */
 
 import type { StateCreator } from 'zustand';
@@ -11,6 +13,15 @@ import type { WorkoutTemplate, UUID } from '../types/types';
 
 const generateId = (): UUID => crypto.randomUUID();
 const now = (): string => new Date().toISOString();
+
+// Helper to safely call markLocalMutation from combined store
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const markDirty = (get: () => any) => {
+    const store = get();
+    if (typeof store.markLocalMutation === 'function') {
+        store.markLocalMutation();
+    }
+};
 
 // ============================================
 // SLICE INTERFACE
@@ -44,6 +55,7 @@ export const createTemplatesSlice: StateCreator<
             updatedAt: now(),
         };
         set((state) => ({ templates: [...state.templates, template] }));
+        markDirty(get); // Phase 22B.1: Track local mutation
         return template;
     },
 
@@ -53,13 +65,16 @@ export const createTemplatesSlice: StateCreator<
                 t.id === id ? { ...t, ...updates, updatedAt: now() } : t
             ),
         }));
+        markDirty(get); // Phase 22B.1: Track local mutation
     },
 
     deleteTemplate: (id) => {
         set((state) => ({
             templates: state.templates.filter((t) => t.id !== id),
         }));
+        markDirty(get); // Phase 22B.1: Track local mutation
     },
 
     getTemplate: (id) => get().templates.find((t) => t.id === id),
 });
+

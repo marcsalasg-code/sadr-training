@@ -2,25 +2,44 @@
  * LoginView - PIN-based authentication
  * 
  * Phase 15A: Simple login screen with Aura styling.
+ * Phase 22B: Empty store guidance with cloud login CTA.
  * - Coach login with default PIN
  * - Athlete login by matching PIN to athlete.pin
  */
 
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import { useTrainingStore } from '../store/store';
 import { AuraButton } from '../components/ui/aura';
+import { isSupabaseConfigured } from '../lib/supabase';
+import { getCloudSession } from '../services/cloud/cloudService';
+import { useCloudBootstrap } from '../hooks';
 
 export function LoginView() {
     const navigate = useNavigate();
     const [pin, setPin] = useState('');
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [hasCloudSession, setHasCloudSession] = useState<boolean | null>(null);
 
     const login = useTrainingStore((s) => s.login);
     const athletes = useTrainingStore((s) => s.athletes);
     const isAuthenticated = useTrainingStore((s) => s.isAuthenticated);
     const currentUser = useTrainingStore((s) => s.currentUser);
+
+    // Cloud bootstrap hook - auto-pulls if store empty and cloud session exists
+    const { status: bootstrapStatus } = useCloudBootstrap();
+
+    // Check for cloud session on mount
+    useEffect(() => {
+        if (isSupabaseConfigured()) {
+            getCloudSession().then((session) => {
+                setHasCloudSession(!!session);
+            });
+        } else {
+            setHasCloudSession(false);
+        }
+    }, []);
 
     // If already authenticated, redirect
     if (isAuthenticated && currentUser) {
@@ -28,6 +47,11 @@ export function LoginView() {
         navigate(destination, { replace: true });
         return null;
     }
+
+    // Empty store condition
+    const isStoreEmpty = athletes.length === 0;
+    const showCloudGuidance = isStoreEmpty && isSupabaseConfigured() && hasCloudSession === false;
+    const isBootstrapping = bootstrapStatus === 'checking' || bootstrapStatus === 'syncing';
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -56,6 +80,59 @@ export function LoginView() {
         setPin(value);
         setError('');
     };
+
+    // Show loading state while bootstrapping
+    if (isBootstrapping) {
+        return (
+            <div className="min-h-screen bg-[var(--color-bg-primary)] flex items-center justify-center p-4">
+                <div className="w-full max-w-sm text-center">
+                    <div className="animate-spin text-4xl mb-4">⏳</div>
+                    <p className="text-white font-medium">Sincronizando datos...</p>
+                    <p className="text-sm text-gray-400 mt-2">Descargando desde la nube</p>
+                </div>
+            </div>
+        );
+    }
+
+    // Show cloud guidance if store is empty and no cloud session
+    if (showCloudGuidance) {
+        return (
+            <div className="min-h-screen bg-[var(--color-bg-primary)] flex items-center justify-center p-4">
+                <div className="w-full max-w-sm">
+                    {/* Logo */}
+                    <div className="text-center mb-8">
+                        <div className="w-16 h-16 mx-auto mb-4 bg-[#1A1A1A] rounded-xl border border-[#333] flex items-center justify-center">
+                            <span className="text-3xl">📱</span>
+                        </div>
+                        <h1 className="text-xl font-bold text-white tracking-tight">Nuevo dispositivo</h1>
+                        <p className="text-xs text-gray-500 font-mono tracking-widest mt-1">SIN DATOS LOCALES</p>
+                    </div>
+
+                    {/* Guidance */}
+                    <div className="bg-[#1A1A1A] rounded-lg border border-[#2A2A2A] p-6 mb-6">
+                        <p className="text-gray-300 text-sm text-center mb-4">
+                            No hay datos en este dispositivo. Conecta con la nube para sincronizar.
+                        </p>
+                        <Link to="/cloud-login">
+                            <AuraButton variant="gold" size="lg" className="w-full">
+                                ☁️ Conectar Cloud
+                            </AuraButton>
+                        </Link>
+                    </div>
+
+                    {/* Alternative: already connected */}
+                    <div className="text-center">
+                        <p className="text-xs text-gray-500 mb-3">¿Ya estás conectado a Cloud?</p>
+                        <Link to="/settings?tab=cloud">
+                            <AuraButton variant="ghost" size="sm">
+                                Ir a Configuración → Cloud
+                            </AuraButton>
+                        </Link>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-[var(--color-bg-primary)] flex items-center justify-center p-4">
@@ -109,9 +186,22 @@ export function LoginView() {
                 <p className="mt-8 text-center text-xs text-gray-600">
                     Coach PIN: 0000 (default)
                 </p>
+
+                {/* Cloud link for devices with data */}
+                {isSupabaseConfigured() && (
+                    <div className="mt-4 text-center">
+                        <Link
+                            to="/cloud-login"
+                            className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
+                        >
+                            ☁️ Sincronizar con Cloud
+                        </Link>
+                    </div>
+                )}
             </div>
         </div>
     );
 }
 
 export default LoginView;
+

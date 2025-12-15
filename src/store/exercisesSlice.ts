@@ -1,5 +1,7 @@
 /**
  * Exercises Slice - Zustand slice for exercise catalog management
+ * 
+ * Phase 22B.1: Instrumented with dirty tracking (markLocalMutation)
  */
 
 import type { StateCreator } from 'zustand';
@@ -11,6 +13,15 @@ import type { Exercise, UUID, OneRMAnchorConfig, BodyRegion } from '../types/typ
 
 const generateId = (): UUID => crypto.randomUUID();
 const now = (): string => new Date().toISOString();
+
+// Helper to safely call markLocalMutation from combined store
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const markDirty = (get: () => any) => {
+    const store = get();
+    if (typeof store.markLocalMutation === 'function') {
+        store.markLocalMutation();
+    }
+};
 
 // ============================================
 // SLICE INTERFACE
@@ -91,6 +102,7 @@ export const createExercisesSlice: StateCreator<
             tags: exerciseData.tags || [],
         };
         set((state) => ({ exercises: [...state.exercises, exercise] }));
+        markDirty(get); // Phase 22B.1: Track local mutation
         return exercise;
     },
 
@@ -100,12 +112,14 @@ export const createExercisesSlice: StateCreator<
                 e.id === id ? { ...e, ...updates } : e
             ),
         }));
+        markDirty(get); // Phase 22B.1: Track local mutation
     },
 
     deleteExercise: (id) => {
         set((state) => ({
             exercises: state.exercises.filter((e) => e.id !== id),
         }));
+        markDirty(get); // Phase 22B.1: Track local mutation
     },
 
     getExercise: (id) => get().exercises.find((e) => e.id === id),
@@ -116,6 +130,7 @@ export const createExercisesSlice: StateCreator<
         set((state) => ({
             exerciseCategories: [...state.exerciseCategories, { id, name, icon }],
         }));
+        markDirty(get); // Phase 22B.1: Track local mutation
     },
 
     updateCategory: (id, updates) => {
@@ -124,12 +139,14 @@ export const createExercisesSlice: StateCreator<
                 cat.id === id ? { ...cat, ...updates } : cat
             ),
         }));
+        markDirty(get); // Phase 22B.1: Track local mutation
     },
 
     deleteCategory: (id) => {
         set((state) => ({
             exerciseCategories: state.exerciseCategories.filter((cat) => cat.id !== id),
         }));
+        markDirty(get); // Phase 22B.1: Track local mutation
     },
 
     // Anchor Config
@@ -137,6 +154,7 @@ export const createExercisesSlice: StateCreator<
         set((state) => ({
             anchorConfig: { ...state.anchorConfig, ...updates },
         }));
+        markDirty(get); // Phase 22B.1: Track local mutation
     },
 
     setAnchorExercise: (exerciseId, isAnchor) => {
@@ -152,6 +170,7 @@ export const createExercisesSlice: StateCreator<
                 },
             };
         });
+        markDirty(get); // Phase 22B.1: Track local mutation
     },
 
     setExerciseReference: (exerciseId, referenceIds) => {
@@ -164,5 +183,7 @@ export const createExercisesSlice: StateCreator<
                 },
             },
         }));
+        markDirty(get); // Phase 22B.1: Track local mutation
     },
 });
+

@@ -4,7 +4,8 @@
  * Rediseñado con UI Aura
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { Input, Select, Toggle, ConfirmModal } from '../components/ui';
 import {
     AuraSection,
@@ -16,6 +17,162 @@ import { useSettings, useTrainingStore } from '../store/store';
 import { AIEnginePanel, SystemStatsPanel, FeedbackPanel, SimulatorPanel, CategoryManager } from '../components/lab';
 import { OneRMAnchorManager } from '../components/common/OneRMAnchorManager';
 import { useIsAthlete } from '../hooks';
+import { isSupabaseConfigured } from '../lib/supabase';
+import {
+    cloudUploadAllFromStore,
+    cloudPullAllToStoreSafe,
+    getCloudSession,
+    cloudLogout,
+} from '../services/cloud/cloudService';
+
+// ============================================
+// Phase 22B.2: Sync Status Panel Component
+// Phase 22C: Added remote changes pending indicator
+// ============================================
+
+function SyncStatusPanel() {
+    const syncStatus = useTrainingStore((s) => s.status);
+    const lastCloudPullAt = useTrainingStore((s) => s.lastCloudPullAt);
+    const lastCloudPushAt = useTrainingStore((s) => s.lastCloudPushAt);
+    const hasUnpushedChanges = useTrainingStore((s) => s.hasUnpushedChanges);
+    const remoteChangesPending = useTrainingStore((s) => s.remoteChangesPending);
+    const setRemoteChangesPending = useTrainingStore((s) => s.setRemoteChangesPending);
+    const setSyncStatus = useTrainingStore((s) => s.setSyncStatus);
+
+    const [isResolving, setIsResolving] = useState(false);
+
+    const formatDate = (iso: string | null) => {
+        if (!iso) return 'Nunca';
+        const date = new Date(iso);
+        return date.toLocaleDateString('es-ES', {
+            day: '2-digit',
+            month: 'short',
+            hour: '2-digit',
+            minute: '2-digit',
+        });
+    };
+
+    const statusConfig = {
+        idle: { label: 'Listo', color: 'bg-green-500/20 text-green-400', icon: '✓' },
+        syncing: { label: 'Sincronizando...', color: 'bg-blue-500/20 text-blue-400', icon: '⏳' },
+        error: { label: 'Error', color: 'bg-red-500/20 text-red-400', icon: '✕' },
+    };
+
+    const config = statusConfig[syncStatus];
+    const unpushed = hasUnpushedChanges();
+    const isConflict = remoteChangesPending && unpushed;
+
+    // Phase 22C.2: Conflict Resolution Handlers
+    const handleForceOverwriteLocal = async () => {
+        if (!window.confirm('⚠️ ¿Perder todos los cambios locales y descargar de la nube?')) {
+            return;
+        }
+
+        setIsResolving(true);
+        setSyncStatus('syncing');
+
+        try {
+            const result = await cloudPullAllToStoreSafe({ force: true });
+            if (result.success) {
+                setRemoteChangesPending(false);
+                setSyncStatus('idle');
+            } else {
+                setSyncStatus('error', result.error);
+            }
+        } catch (err) {
+            setSyncStatus('error', err instanceof Error ? err.message : 'Error desconocido');
+        } finally {
+            setIsResolving(false);
+        }
+    };
+
+    const handleForceOverwriteCloud = async () => {
+        setIsResolving(true);
+        setSyncStatus('syncing');
+
+        try {
+            const result = await cloudUploadAllFromStore();
+            if (result.success) {
+                setRemoteChangesPending(false);
+                setSyncStatus('idle');
+            } else {
+                setSyncStatus('error', result.error);
+            }
+        } catch (err) {
+            setSyncStatus('error', err instanceof Error ? err.message : 'Error desconocido');
+        } finally {
+            setIsResolving(false);
+        }
+    };
+
+    return (
+        <div className="p-4 bg-[#0A0A0A] rounded-lg border border-[#1A1A1A] space-y-3">
+            <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-400">Estado de sincronización</span>
+                <span className={`px-2 py-1 rounded text-xs font-medium ${config.color}`}>
+                    {config.icon} {config.label}
+                </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                    <p className="text-gray-500">Última subida</p>
+                    <p className="text-white">{formatDate(lastCloudPushAt)}</p>
+                </div>
+                <div>
+                    <p className="text-gray-500">Última descarga</p>
+                    <p className="text-white">{formatDate(lastCloudPullAt)}</p>
+                </div>
+            </div>
+
+            {/* Phase 22C.2: Conflict alert with resolution actions */}
+            {isConflict && (
+                <div className="space-y-3">
+                    <div className="flex items-center gap-2 p-2 bg-orange-500/10 rounded border border-orange-500/30">
+                        <span className="text-orange-400">⚡</span>
+                        <span className="text-sm text-orange-400">
+                            Conflicto: tienes cambios locales sin subir y hay cambios nuevos en la nube.
+                        </span>
+                    </div>
+
+                    {/* Resolution Buttons */}
+                    <div className="flex flex-col sm:flex-row gap-2">
+                        <button
+                            onClick={handleForceOverwriteCloud}
+                            disabled={isResolving}
+                            className="flex-1 px-4 py-2 bg-amber-600/20 hover:bg-amber-600/30 border border-amber-500/50 rounded-lg text-amber-400 text-sm font-medium transition-colors disabled:opacity-50"
+                        >
+                            🟡 Sobrescribir Nube (Subir mis cambios)
+                        </button>
+                        <button
+                            onClick={handleForceOverwriteLocal}
+                            disabled={isResolving}
+                            className="flex-1 px-4 py-2 bg-red-600/20 hover:bg-red-600/30 border border-red-500/50 rounded-lg text-red-400 text-sm font-medium transition-colors disabled:opacity-50"
+                        >
+                            🔴 Sobrescribir Local (Descargar de nube)
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {remoteChangesPending && !unpushed && (
+                <div className="flex items-center gap-2 p-2 bg-blue-500/10 rounded border border-blue-500/30">
+                    <span className="text-blue-400">☁️</span>
+                    <span className="text-sm text-blue-400">
+                        Hay cambios en la nube pendientes de descargar.
+                    </span>
+                </div>
+            )}
+
+            {unpushed && !remoteChangesPending && (
+                <div className="flex items-center gap-2 p-2 bg-amber-500/10 rounded border border-amber-500/30">
+                    <span className="text-amber-400">⚠️</span>
+                    <span className="text-sm text-amber-400">Cambios locales sin subir</span>
+                </div>
+            )}
+        </div>
+    );
+}
 
 export function SettingsView() {
     const settings = useSettings();
@@ -27,8 +184,14 @@ export function SettingsView() {
     const [pendingImportFile, setPendingImportFile] = useState<File | null>(null);
     const [importError, setImportError] = useState<string | null>(null);
     const [importSuccess, setImportSuccess] = useState<string | null>(null);
-    const [activeTab, setActiveTab] = useState<'training' | 'categories' | 'interface' | 'data' | 'advanced'>('training');
+    const [activeTab, setActiveTab] = useState<'training' | 'categories' | 'interface' | 'data' | 'cloud' | 'advanced'>('training');
     const [advancedSubTab, setAdvancedSubTab] = useState<'experimental' | 'ai' | 'anchors' | 'categories' | 'feedback' | 'simulator' | 'system'>('experimental');
+
+    // Cloud sync state
+    const [cloudUser, setCloudUser] = useState<{ email: string } | null>(null);
+    const [cloudLoading, setCloudLoading] = useState(false);
+    const [cloudMessage, setCloudMessage] = useState<{ type: 'success' | 'error' | 'warning'; text: string } | null>(null);
+    const [showForcePullModal, setShowForcePullModal] = useState(false);
 
     // Phase 15C: Role-based tab visibility
     const isAthlete = useIsAthlete();
@@ -96,11 +259,67 @@ export function SettingsView() {
         setShowImportConfirmModal(false);
     };
 
-    const tabs: Array<{ id: 'training' | 'categories' | 'interface' | 'data' | 'advanced'; label: string; icon: string }> = [
+    // Cloud session check
+    useEffect(() => {
+        if (!isSupabaseConfigured()) return;
+        getCloudSession().then((session) => {
+            if (session?.user?.email) {
+                setCloudUser({ email: session.user.email });
+            }
+        });
+    }, []);
+
+    const handleCloudUpload = async () => {
+        setCloudLoading(true);
+        setCloudMessage(null);
+        const result = await cloudUploadAllFromStore();
+        setCloudLoading(false);
+        if (result.success) {
+            setCloudMessage({ type: 'success', text: `☁️ Subido: ${result.counts.athletes} atletas, ${result.counts.sessions} sesiones, ${result.counts.templates} plantillas, ${result.counts.exercises} ejercicios` });
+        } else {
+            setCloudMessage({ type: 'error', text: result.error || 'Error uploading' });
+        }
+    };
+
+    const handleCloudPull = async (force = false) => {
+        setCloudLoading(true);
+        setCloudMessage(null);
+        const result = await cloudPullAllToStoreSafe({ force });
+        setCloudLoading(false);
+
+        if (result.blocked) {
+            // Show warning and offer force option
+            setCloudMessage({
+                type: 'warning',
+                text: 'Tienes cambios locales sin subir. Sube primero o fuerza la descarga.'
+            });
+            return;
+        }
+
+        if (result.success) {
+            setCloudMessage({ type: 'success', text: `⬇️ Descargado: ${result.counts.athletes} atletas, ${result.counts.sessions} sesiones, ${result.counts.templates} plantillas, ${result.counts.exercises} ejercicios` });
+        } else {
+            setCloudMessage({ type: 'error', text: result.error || 'Error pulling' });
+        }
+    };
+
+    const handleForcePull = async () => {
+        setShowForcePullModal(false);
+        await handleCloudPull(true);
+    };
+
+    const handleCloudLogout = async () => {
+        await cloudLogout();
+        setCloudUser(null);
+        setCloudMessage({ type: 'success', text: 'Sesión cerrada' });
+    };
+
+    const tabs: Array<{ id: 'training' | 'categories' | 'interface' | 'data' | 'cloud' | 'advanced'; label: string; icon: string }> = [
         { id: 'training', label: 'Training', icon: '🏋️' },
         { id: 'categories', label: 'Categorías', icon: '🏷️' },
         { id: 'interface', label: 'Interface', icon: '🎨' },
         { id: 'data', label: 'Data', icon: '💾' },
+        { id: 'cloud', label: 'Cloud', icon: '☁️' },
         { id: 'advanced', label: 'Avanzado', icon: '🔬' },
     ];
 
@@ -452,6 +671,123 @@ export function SettingsView() {
                 </div>
             )}
 
+            {/* Cloud Tab */}
+            {activeTab === 'cloud' && (
+                <div className="space-y-6">
+                    <AuraPanel header={<span className="text-white font-medium">☁️ Cloud Sync</span>}>
+                        {!isSupabaseConfigured() ? (
+                            <div className="text-center py-8">
+                                <div className="text-5xl mb-4">☁️</div>
+                                <p className="text-gray-400 mb-4">Cloud no configurado</p>
+                                <p className="text-sm text-gray-500 mb-6">
+                                    Añade <code className="text-amber-400">VITE_SUPABASE_URL</code> y <code className="text-amber-400">VITE_SUPABASE_ANON_KEY</code> a tu archivo .env
+                                </p>
+                            </div>
+                        ) : !cloudUser ? (
+                            <div className="text-center py-8">
+                                <div className="text-5xl mb-4">🔐</div>
+                                <p className="text-gray-400 mb-4">No conectado a la nube</p>
+                                <p className="text-sm text-gray-500 mb-6">
+                                    Inicia sesión para sincronizar datos entre dispositivos.
+                                </p>
+                                <Link to="/cloud-login">
+                                    <AuraButton variant="gold">Iniciar sesión en Cloud</AuraButton>
+                                </Link>
+                            </div>
+                        ) : (
+                            <div className="space-y-6">
+                                {/* Connection Status */}
+                                <div className="flex items-center gap-4 p-4 bg-[#141414] rounded-lg">
+                                    <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center">
+                                        <span className="text-green-400">✓</span>
+                                    </div>
+                                    <div className="flex-1">
+                                        <p className="text-white font-medium">Conectado</p>
+                                        <p className="text-sm text-gray-400">{cloudUser.email}</p>
+                                    </div>
+                                    <AuraButton variant="ghost" size="sm" onClick={handleCloudLogout}>
+                                        Cerrar sesión
+                                    </AuraButton>
+                                </div>
+
+                                {/* Phase 22B.2: Sync Status Panel */}
+                                <SyncStatusPanel />
+
+                                {/* Sync Actions */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <button
+                                        onClick={handleCloudUpload}
+                                        disabled={cloudLoading}
+                                        className="p-6 bg-[#1A1A1A] rounded-lg border border-[#2A2A2A] hover:border-amber-500/50 transition-colors text-left disabled:opacity-50"
+                                    >
+                                        <div className="text-3xl mb-2">☁️</div>
+                                        <h3 className="text-white font-medium mb-1">Subir datos locales</h3>
+                                        <p className="text-sm text-gray-500">Envía atletas, sesiones, plantillas y ejercicios a la nube</p>
+                                    </button>
+
+                                    <button
+                                        onClick={() => handleCloudPull()}
+                                        disabled={cloudLoading}
+                                        className="p-6 bg-[#1A1A1A] rounded-lg border border-[#2A2A2A] hover:border-blue-500/50 transition-colors text-left disabled:opacity-50"
+                                    >
+                                        <div className="text-3xl mb-2">⬇️</div>
+                                        <h3 className="text-white font-medium mb-1">Bajar datos de la nube</h3>
+                                        <p className="text-sm text-gray-500">Descarga los datos de este coach a este dispositivo</p>
+                                    </button>
+                                </div>
+
+                                {/* Loading */}
+                                {cloudLoading && (
+                                    <div className="text-center py-4">
+                                        <div className="inline-block animate-spin text-2xl">⏳</div>
+                                        <p className="text-gray-400 mt-2">Sincronizando...</p>
+                                    </div>
+                                )}
+
+                                {/* Message */}
+                                {cloudMessage && (
+                                    <div className={`p-4 rounded-lg border ${cloudMessage.type === 'success'
+                                        ? 'bg-green-900/20 border-green-800/50 text-green-400'
+                                        : cloudMessage.type === 'warning'
+                                            ? 'bg-amber-900/20 border-amber-800/50 text-amber-400'
+                                            : 'bg-red-900/20 border-red-800/50 text-red-400'
+                                        }`}>
+                                        <p>{cloudMessage.text}</p>
+                                        {cloudMessage.type === 'warning' && (
+                                            <div className="mt-3 flex gap-2">
+                                                <AuraButton
+                                                    variant="gold"
+                                                    size="sm"
+                                                    onClick={handleCloudUpload}
+                                                >
+                                                    ☁️ Subir ahora
+                                                </AuraButton>
+                                                <AuraButton
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() => setShowForcePullModal(true)}
+                                                >
+                                                    Forzar descarga
+                                                </AuraButton>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </AuraPanel>
+
+                    <AuraPanel header={<span className="text-white font-medium">ℹ️ Cómo funciona</span>}>
+                        <div className="space-y-3 text-sm text-gray-400">
+                            <p>📌 <strong className="text-white">Local-first</strong>: Los datos se guardan primero en tu dispositivo.</p>
+                            <p>☁️ <strong className="text-white">Upload</strong>: Sube tus datos locales a la nube. Sobrescribe datos con el mismo ID.</p>
+                            <p>⬇️ <strong className="text-white">Pull</strong>: Descarga los datos de la nube y reemplaza los datos locales.</p>
+                            <p>🔒 <strong className="text-white">Seguridad</strong>: Solo tus datos son visibles. Cada coach tiene su espacio aislado.</p>
+                        </div>
+                    </AuraPanel>
+                </div>
+            )}
+
             {/* Advanced Tab (Lab) */}
             {activeTab === 'advanced' && (
                 <div className="space-y-6">
@@ -563,6 +899,16 @@ export function SettingsView() {
                 title="Import Data"
                 message="⚠️ This will replace ALL current data with the selected file. Continue?"
                 confirmText="Yes, import"
+                isDestructive
+            />
+
+            <ConfirmModal
+                isOpen={showForcePullModal}
+                onClose={() => setShowForcePullModal(false)}
+                onConfirm={handleForcePull}
+                title="Forzar descarga"
+                message="⚠️ Esto reemplazará TODOS los datos locales con los de la nube. Los cambios locales no subidos se perderán."
+                confirmText="Sí, forzar descarga"
                 isDestructive
             />
         </div>
