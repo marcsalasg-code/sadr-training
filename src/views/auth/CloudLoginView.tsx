@@ -91,6 +91,9 @@ export function CloudLoginView() {
                     </div>
                     <h1 className="text-xl font-bold text-white tracking-tight">SADR Cloud</h1>
                     <p className="text-xs text-gray-500 font-mono tracking-widest">SYNC ACCOUNT</p>
+                    <p className="text-xs text-gray-400 mt-3 px-2">
+                        Sincroniza datos entre dispositivos. Si no lo necesitas, continúa sin nube.
+                    </p>
                 </div>
 
                 {/* Login Form */}
@@ -150,14 +153,16 @@ export function CloudLoginView() {
                     </AuraButton>
                 </form>
 
-                {/* Skip option */}
-                <div className="mt-8 text-center">
-                    <button
+                {/* Skip option - visible button */}
+                <div className="mt-4">
+                    <AuraButton
+                        variant="ghost"
+                        size="md"
+                        className="w-full"
                         onClick={() => navigate('/login')}
-                        className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
                     >
-                        Continuar sin cloud →
-                    </button>
+                        ← Continuar sin nube
+                    </AuraButton>
                 </div>
             </div>
         </div>

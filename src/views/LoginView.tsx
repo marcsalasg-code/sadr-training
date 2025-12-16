@@ -94,51 +94,12 @@ export function LoginView() {
         );
     }
 
-    // Show cloud guidance if store is empty and no cloud session
-    if (showCloudGuidance) {
-        return (
-            <div className="min-h-screen bg-[var(--color-bg-primary)] flex items-center justify-center p-4">
-                <div className="w-full max-w-sm">
-                    {/* Logo */}
-                    <div className="text-center mb-8">
-                        <div className="w-16 h-16 mx-auto mb-4 bg-[#1A1A1A] rounded-xl border border-[#333] flex items-center justify-center">
-                            <span className="text-3xl">📱</span>
-                        </div>
-                        <h1 className="text-xl font-bold text-white tracking-tight">Nuevo dispositivo</h1>
-                        <p className="text-xs text-gray-500 font-mono tracking-widest mt-1">SIN DATOS LOCALES</p>
-                    </div>
-
-                    {/* Guidance */}
-                    <div className="bg-[#1A1A1A] rounded-lg border border-[#2A2A2A] p-6 mb-6">
-                        <p className="text-gray-300 text-sm text-center mb-4">
-                            No hay datos en este dispositivo. Conecta con la nube para sincronizar.
-                        </p>
-                        <Link to="/cloud-login">
-                            <AuraButton variant="gold" size="lg" className="w-full">
-                                ☁️ Conectar Cloud
-                            </AuraButton>
-                        </Link>
-                    </div>
-
-                    {/* Alternative: already connected */}
-                    <div className="text-center">
-                        <p className="text-xs text-gray-500 mb-3">¿Ya estás conectado a Cloud?</p>
-                        <Link to="/settings?tab=cloud">
-                            <AuraButton variant="ghost" size="sm">
-                                Ir a Configuración → Cloud
-                            </AuraButton>
-                        </Link>
-                    </div>
-                </div>
-            </div>
-        );
-    }
-
+    // Main login view - PIN always accessible
     return (
         <div className="min-h-screen bg-[var(--color-bg-primary)] flex items-center justify-center p-4">
             <div className="w-full max-w-sm">
                 {/* Logo */}
-                <div className="text-center mb-8">
+                <div className="text-center mb-6">
                     <div className="w-16 h-16 mx-auto mb-4 bg-[#1A1A1A] rounded-xl border border-[#333] flex items-center justify-center">
                         <svg className="w-8 h-8 text-[var(--color-accent-gold)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
@@ -148,7 +109,27 @@ export function LoginView() {
                     <p className="text-xs text-gray-500 font-mono tracking-widest">TRAINING OS</p>
                 </div>
 
-                {/* Login Form */}
+                {/* Cloud Guidance Card (non-blocking) */}
+                {showCloudGuidance && (
+                    <div className="bg-[#1A1A1A] rounded-lg border border-[#2A2A2A] p-4 mb-6">
+                        <div className="flex items-start gap-3">
+                            <span className="text-2xl">📱</span>
+                            <div className="flex-1">
+                                <h3 className="text-sm font-medium text-white mb-1">Nuevo dispositivo</h3>
+                                <p className="text-xs text-gray-400 mb-3">
+                                    Para ver tus atletas y sesiones desde otros dispositivos, conecta la nube. Si no lo necesitas, continúa con el PIN.
+                                </p>
+                                <Link to="/cloud-login">
+                                    <AuraButton variant="gold" size="sm" className="w-full">
+                                        ☁️ Conectar Cloud
+                                    </AuraButton>
+                                </Link>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Login Form - ALWAYS visible */}
                 <form onSubmit={handleSubmit} className="space-y-6">
                     <div className="space-y-2">
                         <label className="block text-xs text-gray-400 uppercase tracking-wider">
@@ -187,8 +168,8 @@ export function LoginView() {
                     Coach PIN: 0000 (default)
                 </p>
 
-                {/* Cloud link for devices with data */}
-                {isSupabaseConfigured() && (
+                {/* Cloud link (subtle, for devices with data) */}
+                {isSupabaseConfigured() && !showCloudGuidance && (
                     <div className="mt-4 text-center">
                         <Link
                             to="/cloud-login"
@@ -204,4 +185,5 @@ export function LoginView() {
 }
 
 export default LoginView;
+
 
