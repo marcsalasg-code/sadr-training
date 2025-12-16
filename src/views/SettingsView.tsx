@@ -170,6 +170,19 @@ function SyncStatusPanel() {
                     <span className="text-sm text-amber-400">Cambios locales sin subir</span>
                 </div>
             )}
+
+            {/* P1: Reset cloud opt-out preference */}
+            {localStorage.getItem('sadr_cloud_opt_out') === 'true' && (
+                <button
+                    onClick={() => {
+                        localStorage.removeItem('sadr_cloud_opt_out');
+                        alert('Sugerencia de Cloud restablecida. Verás el aviso en el próximo inicio.');
+                    }}
+                    className="w-full text-xs text-gray-500 hover:text-gray-300 transition-colors py-2"
+                >
+                    Restablecer sugerencia Cloud
+                </button>
+            )}
         </div>
     );
 }

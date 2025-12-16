@@ -50,7 +50,8 @@ export function LoginView() {
 
     // Empty store condition
     const isStoreEmpty = athletes.length === 0;
-    const showCloudGuidance = isStoreEmpty && isSupabaseConfigured() && hasCloudSession === false;
+    const cloudOptOut = localStorage.getItem('sadr_cloud_opt_out') === 'true';
+    const showCloudGuidance = isStoreEmpty && isSupabaseConfigured() && hasCloudSession === false && !cloudOptOut;
     const isBootstrapping = bootstrapStatus === 'checking' || bootstrapStatus === 'syncing';
 
     const handleSubmit = async (e: React.FormEvent) => {

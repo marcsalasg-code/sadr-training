@@ -159,7 +159,10 @@ export function CloudLoginView() {
                         variant="ghost"
                         size="md"
                         className="w-full"
-                        onClick={() => navigate('/login')}
+                        onClick={() => {
+                            localStorage.setItem('sadr_cloud_opt_out', 'true');
+                            navigate('/login');
+                        }}
                     >
                         ← Continuar sin nube
                     </AuraButton>
