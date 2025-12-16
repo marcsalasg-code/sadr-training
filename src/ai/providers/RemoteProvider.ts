@@ -11,6 +11,7 @@
 
 import type { IAIProvider, AIRequest, AIResponse } from '../types';
 import { getSystemPrompt, buildUserPrompt } from '../prompts';
+import { detectProviderMode } from '../utils/configUtils';
 
 export interface RemoteProviderConfig {
     apiUrl: string;
@@ -112,13 +113,9 @@ export class RemoteProvider implements IAIProvider {
             const systemPrompt = getSystemPrompt(request.type);
             const userPrompt = buildUserPrompt(request.prompt, request.context);
 
-            // Detect API type from URL
-            // Note: Google's OpenAI-compatible endpoints also use googleapis.com,
-            // so we must explicitly exclude them from Native Gemini detection
-            const isGemini = (
-                this.config!.apiUrl.includes('generativelanguage.googleapis.com') ||
-                this.config!.apiUrl.includes('gemini')
-            ) && !this.config!.apiUrl.includes('/openai/');
+            // Detect API type from URL using shared utility
+            const providerMode = detectProviderMode(this.config!.apiUrl);
+            const isGemini = providerMode === 'native-gemini';
 
             // Build headers based on API type
             const headers: Record<string, string> = {

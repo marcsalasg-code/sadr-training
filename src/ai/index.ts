@@ -14,6 +14,7 @@ export {
 
 // Utils
 export { mapCatalogForPrompt, mapGeneratedToSession, groupByBlock } from './utils';
+export { detectProviderMode, type AIProviderMode } from './utils/configUtils';
 
 // Prompts
 export { getSystemPrompt, buildUserPrompt, SYSTEM_PROMPTS, PROMPT_TEMPLATES } from './prompts';

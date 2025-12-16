@@ -10,6 +10,7 @@ import {
     AuraBadge,
 } from '../../components/ui/aura';
 import { useAIStore, useAISettings, useAILogs, useAITest, type ProviderType } from '../../ai';
+import { detectProviderMode } from '../../ai/utils/configUtils';
 
 export function AIEnginePanel() {
     const aiSettings = useAISettings();
@@ -35,6 +36,15 @@ export function AIEnginePanel() {
         }
     };
 
+    const handleResetDefaults = () => {
+        if (confirm('Are you sure? This will clear local configuration and reload the page.')) {
+            localStorage.removeItem('ai-store');
+            window.location.reload();
+        }
+    };
+
+    const providerMode = detectProviderMode(aiSettings.apiUrl);
+
     return (
         <div className="space-y-6">
             {/* Status */}
@@ -42,9 +52,14 @@ export function AIEnginePanel() {
                 header={
                     <div className="flex items-center justify-between w-full">
                         <span className="text-white font-medium">🤖 AI Engine</span>
-                        <AuraBadge variant={aiSettings.isEnabled ? 'success' : 'muted'}>
-                            {aiSettings.isEnabled ? '● Active' : '○ Inactive'}
-                        </AuraBadge>
+                        <div className="flex items-center gap-2">
+                            <AuraButton variant="ghost" size="sm" onClick={handleResetDefaults}>
+                                ↺ Reset Config
+                            </AuraButton>
+                            <AuraBadge variant={aiSettings.isEnabled ? 'success' : 'muted'}>
+                                {aiSettings.isEnabled ? '● Active' : '○ Inactive'}
+                            </AuraBadge>
+                        </div>
                     </div>
                 }
             >
@@ -86,7 +101,16 @@ export function AIEnginePanel() {
 
             {/* Remote Config */}
             {aiSettings.provider === 'remote' && (
-                <AuraPanel header={<span className="text-white font-medium">Remote API Configuration</span>}>
+                <AuraPanel
+                    header={
+                        <div className="flex items-center justify-between w-full">
+                            <span className="text-white font-medium">Remote API Configuration</span>
+                            <AuraBadge variant={providerMode === 'openai-compatible' ? 'success' : 'warning'}>
+                                {providerMode === 'openai-compatible' ? '🟢 OpenAI Mode' : providerMode === 'native-gemini' ? '🔵 Native' : '⚪ Unknown'}
+                            </AuraBadge>
+                        </div>
+                    }
+                >
                     <div className="space-y-4">
                         <Input
                             label="API URL"
@@ -101,12 +125,32 @@ export function AIEnginePanel() {
                             onChange={(e) => updateAISettings({ apiKey: e.target.value })}
                             placeholder="sk-..."
                         />
-                        <Input
-                            label="Model"
-                            value={aiSettings.model}
-                            onChange={(e) => updateAISettings({ model: e.target.value })}
-                            placeholder="gpt-4o-mini"
-                        />
+                        <div className={providerMode === 'native-gemini' ? 'opacity-50' : ''}>
+                            <Input
+                                label="Model"
+                                value={aiSettings.model}
+                                onChange={(e) => updateAISettings({ model: e.target.value })}
+                                placeholder="gpt-4o-mini"
+                                disabled={providerMode === 'native-gemini' && aiSettings.apiUrl.includes('/models/')}
+                            />
+                            {providerMode === 'native-gemini' && aiSettings.apiUrl.includes('/models/') && (
+                                <p className="text-xs text-yellow-500 mt-1">
+                                    ⚠️ In Native Mode, the model is often part of the URL.
+                                </p>
+                            )}
+                        </div>
+
+                        {/* Effective Config Preview */}
+                        <div className="p-3 bg-black/40 rounded-lg text-xs font-mono space-y-1">
+                            <p className="text-gray-400 mb-2 font-sans font-bold">Effective Request Config:</p>
+                            <p><span className="text-blue-400">Mode:</span> {providerMode}</p>
+                            <p><span className="text-blue-400">Endpoint:</span> ...{aiSettings.apiUrl.slice(-30)}</p>
+                            <p>
+                                <span className="text-blue-400">Model Payload:</span>{' '}
+                                {providerMode === 'native-gemini' ? '(Embedded in URL)' : `"${aiSettings.model}"`}
+                            </p>
+                        </div>
+
                         <AuraButton
                             onClick={handleTestConnection}
                             disabled={testStatus === 'testing' || !aiSettings.apiKey}
