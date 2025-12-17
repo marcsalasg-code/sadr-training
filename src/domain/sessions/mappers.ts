@@ -128,6 +128,39 @@ export function createScheduledSessionFromTemplate(
     };
 }
 
+/**
+ * Phase 23 P0.2: Create a snapshot session from a template
+ * 
+ * This creates a "frozen" copy of the template's exercises that can be
+ * stored in PlannedSession.snapshot to prevent retroactive changes.
+ * 
+ * @param template - The workout template to snapshot
+ * @param athleteId - Optional athlete ID for the snapshot
+ * @returns A WorkoutSession with status='planned' suitable for snapshot storage
+ */
+export function createSnapshotFromTemplate(
+    template: WorkoutTemplate,
+    athleteId = ''
+): WorkoutSession {
+    const sessionId = generateId();
+    const now = new Date().toISOString();
+    const exercises = materializeExercisesFromTemplate(template);
+
+    return {
+        id: sessionId,
+        athleteId,
+        templateId: template.id,
+        name: template.name,
+        description: template.description,
+        status: 'planned',
+        exercises,
+        structure: template.structure,
+        notes: '',
+        createdAt: now,
+        updatedAt: now,
+    };
+}
+
 // ============================================
 // BLOCK ID RESOLUTION (Phase 16C)
 // ============================================

@@ -8,8 +8,9 @@
  */
 
 import { useMemo, useCallback } from 'react';
-import { useTrainingStore, useTrainingPlans, useActiveTrainingPlanId, useSessions } from '../store/store';
-import type { TrainingPlan, WorkoutSession, WeekDay, DayPlan } from '../types/types';
+import { useTrainingStore, useTrainingPlans, useActiveTrainingPlanId, useSessions, useTemplates } from '../store/store';
+import { materializeExercisesFromTemplate } from '../domain/sessions/mappers';
+import type { TrainingPlan, WorkoutSession, WeekDay, DayPlan, WorkoutTemplate } from '../types/types';
 
 // Day mapping for date calculations
 const dayIndexMap: Record<WeekDay, number> = {
@@ -76,6 +77,7 @@ export function useTrainingPlanCalendar(): UseTrainingPlanCalendarReturn {
     const trainingPlans = useTrainingPlans();
     const activeTrainingPlanId = useActiveTrainingPlanId();
     const sessions = useSessions();
+    const templates = useTemplates(); // Phase 25 P1.1: For exercise materialization
     const { addSession } = useTrainingStore();
 
     // Get active plan
@@ -179,13 +181,33 @@ export function useTrainingPlanCalendar(): UseTrainingPlanCalendarReturn {
                 continue;
             }
 
+            // Phase 25 P1.1: Materialize exercises from template if available
+            let exercises: WorkoutSession['exercises'] = [];
+            let templateId: string | undefined;
+            let sessionStructure: WorkoutTemplate['structure'] | undefined;
+
+            if (dayPlan.suggestedTemplateId) {
+                const template = templates.find(t => t.id === dayPlan.suggestedTemplateId);
+                if (template) {
+                    exercises = materializeExercisesFromTemplate(template);
+                    templateId = template.id;
+                    sessionStructure = template.structure;
+                } else if (import.meta.env.DEV) {
+                    console.warn(`[PlanCalendar] Template ${dayPlan.suggestedTemplateId} not found for ${dayPlan.dayOfWeek}`);
+                }
+            } else if (import.meta.env.DEV) {
+                console.log(`[PlanCalendar] No suggestedTemplateId for ${dayPlan.dayOfWeek}, creating shell session`);
+            }
+
             const sessionData: Omit<WorkoutSession, 'id' | 'createdAt' | 'updatedAt'> = {
                 athleteId: targetPlan.athleteId,
                 name: dayPlan.sessionType || `${targetPlan.objective} - ${dayPlan.dayOfWeek}`,
                 description: `Generated from plan: ${targetPlan.name}`,
                 scheduledDate: scheduledDate.toISOString(),
                 status: 'planned',
-                exercises: [],
+                exercises,
+                templateId,
+                structure: sessionStructure,
                 origin: 'plan',
             };
 
@@ -194,7 +216,7 @@ export function useTrainingPlanCalendar(): UseTrainingPlanCalendarReturn {
         }
 
         return createdSessions;
-    }, [activePlan, sessions, addSession]);
+    }, [activePlan, sessions, templates, addSession]);
 
     /**
      * Create week events from plan (alias for syncPlanToCalendar)

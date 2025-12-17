@@ -62,9 +62,12 @@ export function SessionNotStarted({
     const totalSets = session.exercises.reduce((sum, ex) => sum + ex.sets.length, 0);
     const estimatedDuration = Math.round(totalSets * 2.5); // ~2.5 min per set
 
-    // Navigate to edit mode in Planning
+    // Navigate to edit mode in Planning (Phase 28B: with returnPath)
     const handleEditInPlanning = () => {
-        navigate(`/planning?tab=sessions&sessionId=${session.id}&mode=edit`);
+        const returnParam = session.athleteId
+            ? `&returnPath=${encodeURIComponent(`/athletes/${session.athleteId}/calendar`)}`
+            : '';
+        navigate(`/planning?tab=sessions&sessionId=${session.id}&mode=edit${returnParam}`);
     };
 
     return (
@@ -100,7 +103,7 @@ export function SessionNotStarted({
                     </div>
                     <div className="flex gap-2">
                         <AuraButton variant="ghost" onClick={onBack}>
-                            ← Volver
+                            {athlete ? `← Volver a ${athlete.name}` : '← Volver'}
                         </AuraButton>
                         {/* Phase 19B: Edit button only for coach */}
                         {isCoach && (

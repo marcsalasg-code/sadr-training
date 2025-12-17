@@ -15,7 +15,12 @@ import {
 import { DayAgendaPanel } from '../components/dashboard';
 import { useCalendarView } from '../hooks';
 
-export function CalendarView() {
+// Phase 28B: Accept optional returnPath for athlete-scoped navigation
+interface CalendarViewProps {
+    returnPath?: string;
+}
+
+export function CalendarView({ returnPath }: CalendarViewProps = {}) {
 
     const navigate = useNavigate();
     const {
@@ -266,6 +271,7 @@ export function CalendarView() {
                 onClose={() => setSelectedDate(null)}
                 selectedDate={selectedDate ? formatDateKey(selectedDate) : ''}
                 initialAthleteId={selectedAthleteId !== 'all' ? selectedAthleteId : undefined}
+                returnPath={returnPath}
             />
         </div>
     );

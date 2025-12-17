@@ -119,40 +119,24 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         ],
     },
     {
-        title: 'Planificación',
+        // Phase 28: Renamed from "Planificación" - now for global resources only
+        title: 'Biblioteca',
         items: [
-            {
-                id: 'sessions',
-                label: 'Sesiones',
-                icon: <NavIcons.Sessions />,
-                to: '/planning?tab=sessions',
-                // Active for sessions tab, including with sessionId and mode params
-                matcher: (pathname, search) =>
-                    pathname === '/planning' && search.get('tab') === 'sessions',
-            },
-            {
-                id: 'calendar',
-                label: 'Calendario',
-                icon: <NavIcons.Calendar />,
-                to: '/planning?tab=calendar',
-                matcher: (pathname, search) =>
-                    pathname === '/planning' && search.get('tab') === 'calendar',
-            },
             {
                 id: 'templates',
                 label: 'Plantillas',
                 icon: <NavIcons.Templates />,
-                to: '/planning?tab=templates',
+                to: '/library?tab=templates',
                 matcher: (pathname, search) =>
-                    pathname === '/planning' && search.get('tab') === 'templates',
+                    pathname === '/library' && (search.get('tab') === 'templates' || !search.get('tab')),
             },
             {
                 id: 'exercises',
                 label: 'Ejercicios',
                 icon: <NavIcons.Exercises />,
-                to: '/planning?tab=exercises',
+                to: '/library?tab=exercises',
                 matcher: (pathname, search) =>
-                    pathname === '/planning' && search.get('tab') === 'exercises',
+                    pathname === '/library' && search.get('tab') === 'exercises',
             },
         ],
     },
@@ -164,8 +148,19 @@ export const NAV_GROUPS: NavGroupConfig[] = [
                 label: 'Atletas',
                 icon: <NavIcons.Athletes />,
                 to: '/athletes',
-                matcher: (pathname) =>
-                    pathname === '/athletes' || pathname.startsWith('/athletes/'),
+                // Phase 28C: Also matches session/planning routes when returnPath indicates athlete context
+                matcher: (pathname, search) => {
+                    // Direct athlete routes
+                    if (pathname === '/athletes' || pathname.startsWith('/athletes/')) {
+                        return true;
+                    }
+                    // Phase 28C: Check if in session editing or live with athlete returnPath
+                    const returnPath = search.get('returnPath');
+                    if (returnPath && decodeURIComponent(returnPath).startsWith('/athletes/')) {
+                        return true;
+                    }
+                    return false;
+                },
             },
         ],
     },
@@ -182,6 +177,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         ],
     },
     {
+        // Phase 28: Split Sistema - Settings for user, DevLab for dev tools
         title: 'Sistema',
         items: [
             {
@@ -189,20 +185,14 @@ export const NAV_GROUPS: NavGroupConfig[] = [
                 label: 'Settings',
                 icon: <NavIcons.Settings />,
                 to: '/settings',
-                // Active when on settings without tab or with general tab
-                matcher: (pathname, search) => {
-                    if (pathname !== '/settings') return false;
-                    const tab = search.get('tab');
-                    return !tab || tab === 'general' || tab === '';
-                },
+                matcher: (pathname) => pathname === '/settings',
             },
             {
                 id: 'lab',
                 label: 'Dev Lab',
                 icon: <NavIcons.Lab />,
-                to: '/settings?tab=advanced',
-                matcher: (pathname, search) =>
-                    pathname === '/settings' && search.get('tab') === 'advanced',
+                to: '/devlab',
+                matcher: (pathname) => pathname === '/devlab',
             },
         ],
     },

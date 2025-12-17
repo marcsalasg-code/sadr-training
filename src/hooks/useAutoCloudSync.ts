@@ -28,11 +28,44 @@ import {
     checkCloudUpdates,
     cloudPullAllToStoreSafe,
 } from '../services/cloud/cloudService';
+import { syncFlightRecorder, type SyncPhase, type SyncEvent } from '../core/observability/syncFlightRecorder';
 
 // Backoff: Don't retry for 30 seconds after an error
 const ERROR_BACKOFF_MS = 30_000;
 // Auto-sync interval: 90 seconds (balanced between freshness and server load)
 const AUTO_SYNC_INTERVAL_MS = 90 * 1000;
+// Phase 26: Watchdog timeout - aborts sync if it hangs (tuned from 30s to 45s)
+const WATCHDOG_TIMEOUT_MS = 45 * 1000;
+
+// Phase 24: Dev-only logging helper + Phase 26: Flight Recorder
+const isDev = import.meta.env.DEV;
+function syncLog(runId: string, phase: string, message: string, data?: unknown) {
+    if (isDev) {
+        const prefix = `[Sync:${runId.slice(0, 8)}]`;
+        if (data !== undefined) {
+            console.log(`${prefix} [${phase}] ${message}`, data);
+        } else {
+            console.log(`${prefix} [${phase}] ${message}`);
+        }
+    }
+}
+
+// Phase 26: Record to flight recorder (always, not just DEV)
+function recordSync(
+    runId: string,
+    phase: SyncPhase,
+    event: SyncEvent,
+    details?: string,
+    durationMs?: number
+): void {
+    syncFlightRecorder.record({
+        runId: runId.slice(0, 8),
+        phase,
+        event,
+        details,
+        durationMs,
+    });
+}
 
 /**
  * Hook that automatically syncs local changes to cloud for coach users.
@@ -50,8 +83,8 @@ export function useAutoCloudSync(): void {
 
     // Track last error time for backoff
     const lastErrorTimeRef = useRef<number>(0);
-    // Track if sync cycle is in progress
-    const isSyncingRef = useRef<boolean>(false);
+    // Phase 24: AbortController for cancelling previous sync cycles
+    const abortControllerRef = useRef<AbortController | null>(null);
 
     /**
      * Main sync cycle: Push → Check → Pull (if safe)
@@ -71,8 +104,8 @@ export function useAutoCloudSync(): void {
             return;
         }
 
-        // Guard: Not already syncing
-        if (syncStatus === 'syncing' || isSyncingRef.current) {
+        // Guard: Not already syncing (Phase P1.1: Global lock via syncSlice.status)
+        if (syncStatus === 'syncing') {
             return;
         }
 
@@ -106,7 +139,29 @@ export function useAutoCloudSync(): void {
         // SYNC CYCLE
         // ========================================
 
-        isSyncingRef.current = true;
+        // Phase 24: Cancel any previous in-flight sync cycle
+        if (abortControllerRef.current) {
+            syncLog('--', 'ABORT', 'Cancelling previous sync cycle');
+            abortControllerRef.current.abort();
+        }
+        abortControllerRef.current = new AbortController();
+        const signal = abortControllerRef.current.signal;
+        const syncRunId = crypto.randomUUID();
+
+        // Phase P1.1: Set global lock BEFORE any async work
+        setSyncStatus('syncing');
+        syncLog(syncRunId, 'START', 'Sync cycle started');
+        recordSync(syncRunId, 'OTHER', 'START');
+        const cycleStartTime = performance.now();
+
+        // Phase 25 P0.2: Start watchdog timer (Phase 26: tuned to 45s)
+        const watchdogTimer = setTimeout(() => {
+            syncLog(syncRunId, 'WATCHDOG', 'Timeout after 45s - aborting');
+            recordSync(syncRunId, 'OTHER', 'WATCHDOG', 'timeout', performance.now() - cycleStartTime);
+            abortControllerRef.current?.abort();
+            // Set error status (non-blocking, recoverable)
+            setSyncStatus('error', 'Sync timeout - network may be slow');
+        }, WATCHDOG_TIMEOUT_MS);
 
         try {
             const hasDirtyLocal = hasUnpushedChanges();
@@ -116,17 +171,25 @@ export function useAutoCloudSync(): void {
             // ----------------------------------------
             let didPush = false;
             if (hasDirtyLocal) {
-                setSyncStatus('syncing');
-                console.log('[AutoCloudSync] Pushing local changes...');
+                syncLog(syncRunId, 'PUSH', 'Pushing local changes...');
 
-                const pushResult = await cloudUploadAllFromStore();
+                const pushResult = await cloudUploadAllFromStore({ signal, runId: syncRunId });
+
+                // Phase 24: Check if aborted after async operation
+                if (signal.aborted) {
+                    syncLog(syncRunId, 'ABORT', 'Aborted after push');
+                    recordSync(syncRunId, 'PUSH', 'ABORT', 'aborted-post-push');
+                    return;
+                }
 
                 if (pushResult.success) {
-                    console.log('[AutoCloudSync] Push complete:', pushResult.counts);
+                    syncLog(syncRunId, 'PUSH', 'Push complete', pushResult.counts);
+                    recordSync(syncRunId, 'PUSH', 'SUCCESS', `count:${Object.values(pushResult.counts).reduce((a, b) => a + b, 0)}`);
                     markPushed();
                     didPush = true;
                 } else {
-                    console.warn('[AutoCloudSync] Push failed:', pushResult.error);
+                    syncLog(syncRunId, 'ERROR', 'Push failed', pushResult.error);
+                    recordSync(syncRunId, 'PUSH', 'ERROR', pushResult.error);
                     setSyncStatus('error', pushResult.error);
                     lastErrorTimeRef.current = Date.now();
                     return; // Don't continue cycle on push failure
@@ -136,10 +199,17 @@ export function useAutoCloudSync(): void {
             // ----------------------------------------
             // STEP 2: Check remote for updates
             // ----------------------------------------
-            const checkResult = await checkCloudUpdates();
+            syncLog(syncRunId, 'CHECK', 'Checking remote for updates...');
+            const checkResult = await checkCloudUpdates({ signal, runId: syncRunId });
+
+            // Phase 24: Check if aborted after async operation
+            if (signal.aborted) {
+                syncLog(syncRunId, 'ABORT', 'Aborted after check');
+                return;
+            }
 
             if (!checkResult.success) {
-                console.warn('[AutoCloudSync] Check failed:', checkResult.error);
+                syncLog(syncRunId, 'WARN', 'Check failed', checkResult.error);
                 // Non-critical, don't set error status
                 setSyncStatus('idle');
                 return;
@@ -159,10 +229,11 @@ export function useAutoCloudSync(): void {
             if (didPush) {
                 // We just pushed, so update lastCloudPullAt to server timestamp
                 // This prevents the "remote is newer" comparison from triggering a pull
-                console.log('[AutoCloudSync] Post-push: updating baseline to', maxRemoteUpdatedAt);
+                syncLog(syncRunId, 'BASELINE', 'Post-push baseline update', maxRemoteUpdatedAt);
                 useTrainingStore.getState().markPulled(maxRemoteUpdatedAt);
                 setRemoteChangesPending(false);
                 setSyncStatus('idle');
+                syncLog(syncRunId, 'END', 'Cycle complete (push path)');
                 return; // End cycle after push + baseline update
             }
 
@@ -204,38 +275,63 @@ export function useAutoCloudSync(): void {
                 // Conflict: Remote is newer but local has unpushed changes
                 // This shouldn't normally happen since we pushed in Step 1,
                 // but could occur if push failed or new changes came in during cycle
-                console.log('[AutoCloudSync] Remote newer but local dirty → marking conflict');
+                syncLog(syncRunId, 'CONFLICT', 'Remote newer but local dirty');
                 setRemoteChangesPending(true);
                 setSyncStatus('idle');
             } else {
                 // Safe to auto-pull: local is clean, remote is newer
-                console.log('[AutoCloudSync] Remote newer, local clean → auto-pulling...');
+                syncLog(syncRunId, 'PULL', 'Remote newer, local clean → auto-pulling');
                 setSyncStatus('syncing');
 
-                const pullResult = await cloudPullAllToStoreSafe({ force: false });
+                const pullResult = await cloudPullAllToStoreSafe({ force: false, signal, runId: syncRunId });
+
+                // Phase 24: Check if aborted after async operation
+                if (signal.aborted) {
+                    syncLog(syncRunId, 'ABORT', 'Aborted after pull');
+                    recordSync(syncRunId, 'PULL', 'ABORT', 'aborted-post-pull');
+                    return;
+                }
 
                 if (pullResult.success) {
-                    console.log('[AutoCloudSync] Auto-pull complete:', pullResult.counts);
+                    syncLog(syncRunId, 'PULL', 'Auto-pull complete', pullResult.counts);
+                    recordSync(syncRunId, 'PULL', 'SUCCESS', `count:${Object.values(pullResult.counts).reduce((a, b) => a + b, 0)}`, performance.now() - cycleStartTime);
                     // markPulled is called inside cloudPullAllToStoreSafe with server timestamp
                     setRemoteChangesPending(false);
+                    syncLog(syncRunId, 'END', 'Cycle complete (pull path)');
                 } else if (pullResult.blocked) {
                     // Shouldn't happen since we checked `stillDirty`, but handle gracefully
-                    console.log('[AutoCloudSync] Pull blocked (race condition) → marking conflict');
+                    syncLog(syncRunId, 'BLOCKED', 'Pull blocked (race condition)');
                     setRemoteChangesPending(true);
                     setSyncStatus('idle');
                 } else {
-                    console.warn('[AutoCloudSync] Pull failed:', pullResult.error);
+                    syncLog(syncRunId, 'ERROR', 'Pull failed', pullResult.error);
+                    recordSync(syncRunId, 'PULL', 'ERROR', pullResult.error);
                     setSyncStatus('error', pullResult.error);
                     lastErrorTimeRef.current = Date.now();
                 }
             }
 
         } catch (err) {
+            // Phase 24: Handle abort gracefully (don't show as error)
+            if (err instanceof Error && err.name === 'AbortError') {
+                syncLog('--', 'ABORT', 'Sync cycle aborted');
+                recordSync(syncRunId, 'OTHER', 'ABORT', 'catch-abort');
+                return;
+            }
             console.error('[AutoCloudSync] Cycle error:', err);
+            recordSync(syncRunId, 'OTHER', 'ERROR', err instanceof Error ? err.message : 'unknown');
             setSyncStatus('error', err instanceof Error ? err.message : 'Unknown error');
             lastErrorTimeRef.current = Date.now();
         } finally {
-            isSyncingRef.current = false;
+            // Phase 25 P0.2: Always clear watchdog
+            clearTimeout(watchdogTimer);
+
+            // Phase P1.1: Release global lock in finally (only if still 'syncing')
+            // This prevents overwriting error status set during the cycle
+            const currentStatus = useTrainingStore.getState().status;
+            if (currentStatus === 'syncing') {
+                setSyncStatus('idle');
+            }
         }
     }, [
         currentUser?.role,

@@ -7,10 +7,53 @@
 
 import { supabase, isSupabaseConfigured } from '../../lib/supabase';
 import { useTrainingStore } from '../../store/store';
+import { syncFlightRecorder } from '../../core/observability/syncFlightRecorder';
 import type { Athlete } from '../../domain/athletes/types';
 import type { WorkoutSession } from '../../domain/sessions/types';
 import type { Exercise } from '../../domain/exercises/types';
 import type { WorkoutTemplate } from '../../types/types';
+
+// ============================================
+// TYPES (Phase 27: Options with runId for tracing)
+// ============================================
+
+export interface CloudServiceOptions {
+    signal?: AbortSignal;
+    runId?: string;
+}
+
+// ============================================
+// ABORT SIGNAL HELPER (Phase 25 P0.1)
+// ============================================
+
+/**
+ * Throws AbortError if signal is aborted.
+ * Call this BEFORE any state mutation to prevent stale cycle from applying changes.
+ */
+function assertNotAborted(signal?: AbortSignal, context?: string): void {
+    if (signal?.aborted) {
+        const msg = context ? `Aborted: ${context}` : 'Aborted';
+        throw new DOMException(msg, 'AbortError');
+    }
+}
+
+/**
+ * Phase 27: Record error to flight recorder with context.
+ */
+function recordError(
+    runId: string | undefined,
+    phase: 'PUSH' | 'CHECK' | 'PULL' | 'OTHER',
+    source: 'network' | 'auth' | 'data' | 'unknown',
+    message: string
+): void {
+    syncFlightRecorder.record({
+        runId: runId?.slice(0, 8) || 'service',
+        phase,
+        event: 'ERROR',
+        source,
+        details: message.slice(0, 100),
+    });
+}
 
 // ============================================
 // TYPES
@@ -65,9 +108,11 @@ export interface CloudUpdatesCheckResult {
  * Check for cloud updates by querying only updated_at timestamps.
  * This is a lightweight check that doesn't download the full data JSONB.
  * 
+ * @param options - Optional signal and runId for tracing
  * @returns The maximum updated_at across critical tables (athletes, sessions, templates)
  */
-export async function checkCloudUpdates(): Promise<CloudUpdatesCheckResult> {
+export async function checkCloudUpdates(options?: CloudServiceOptions): Promise<CloudUpdatesCheckResult> {
+    const { signal, runId } = options || {};
     // Guard: Skip if Supabase not configured
     if (!isSupabaseConfigured()) {
         return { success: false, maxRemoteUpdatedAt: null, error: 'Cloud no configurado' };
@@ -120,7 +165,7 @@ export async function checkCloudUpdates(): Promise<CloudUpdatesCheckResult> {
 
     } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
-        console.error('[CloudService] checkCloudUpdates error:', message);
+        recordError(runId, 'CHECK', 'network', message);
         return {
             success: false,
             maxRemoteUpdatedAt: null,
@@ -133,7 +178,9 @@ export async function checkCloudUpdates(): Promise<CloudUpdatesCheckResult> {
 // UPLOAD: Local -> Cloud
 // ============================================
 
-export async function cloudUploadAllFromStore(): Promise<CloudUploadResult> {
+export async function cloudUploadAllFromStore(options?: CloudServiceOptions): Promise<CloudUploadResult> {
+    const { signal, runId } = options || {};
+
     // Guard: Skip if Supabase not configured
     if (!isSupabaseConfigured()) {
         return { success: false, counts: { athletes: 0, sessions: 0, templates: 0, exercises: 0 }, error: 'Cloud no configurado' };
@@ -221,15 +268,17 @@ export async function cloudUploadAllFromStore(): Promise<CloudUploadResult> {
             counts.exercises = exerciseRows.length;
         }
 
+        // Phase 25 P0.1: Check abort before mutating state
+        assertNotAborted(signal, 'before markPushed');
+
         // Mark pushed in sync state
         useTrainingStore.getState().markPushed();
 
-        console.log('[CloudService] Upload complete:', counts);
         return { success: true, counts };
 
     } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
-        console.error('[CloudService] Upload error:', message);
+        recordError(runId, 'PUSH', 'network', message);
         useTrainingStore.getState().setSyncStatus('error', message);
         return { success: false, counts, error: message };
     }
@@ -274,8 +323,8 @@ async function fetchTable<T>(
     }
 }
 
-export async function cloudPullAllToStore(options: { force?: boolean } = {}): Promise<CloudPullResult> {
-    const { force = false } = options;
+export async function cloudPullAllToStore(options: { force?: boolean; signal?: AbortSignal; runId?: string } = {}): Promise<CloudPullResult> {
+    const { force = false, signal, runId } = options;
     const coachId = await getCoachId();
     if (!coachId) {
         return { success: false, counts: { athletes: 0, sessions: 0, templates: 0, exercises: 0 }, error: 'No authenticated user' };
@@ -283,6 +332,9 @@ export async function cloudPullAllToStore(options: { force?: boolean } = {}): Pr
 
     const counts = { athletes: 0, sessions: 0, templates: 0, exercises: 0 };
     const store = useTrainingStore.getState();
+
+    // Phase 25 P0.1: Check abort before hydration
+    assertNotAborted(signal, 'before beginHydration');
 
     // Phase 22B.2: Begin hydration to prevent dirty tracking
     store.beginHydration('cloud');
@@ -358,6 +410,9 @@ export async function cloudPullAllToStore(options: { force?: boolean } = {}): Pr
             : store.exercises; // Keep existing exercises if fetch failed (non-critical)
         counts.exercises = exercisesResult.success ? exercises.length : 0;
 
+        // Phase 25 P0.1: Check abort before major state mutation
+        assertNotAborted(signal, 'before setState');
+
         // Hydrate Zustand store with atomic snapshot
         useTrainingStore.setState({
             athletes,
@@ -380,15 +435,17 @@ export async function cloudPullAllToStore(options: { force?: boolean } = {}): Pr
             );
         }
 
+        // Phase 25 P0.1: Check abort before markPulled
+        assertNotAborted(signal, 'before markPulled');
+
         // Mark pulled in sync state with server timestamp baseline
         store.markPulled(maxRemoteTimestamp);
 
-        console.log('[CloudService] Pull complete:', counts, 'maxRemote:', maxRemoteTimestamp);
         return { success: true, counts };
 
     } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
-        console.error('[CloudService] Pull error:', message);
+        recordError(runId, 'PULL', 'network', message);
         store.setSyncStatus('error', message);
         return { success: false, counts, error: message };
     } finally {
@@ -404,6 +461,10 @@ export async function cloudPullAllToStore(options: { force?: boolean } = {}): Pr
 export interface SafePullOptions {
     /** Force pull even if there are unpushed local changes */
     force?: boolean;
+    /** AbortSignal to cancel operation */
+    signal?: AbortSignal;
+    /** Phase 27: RunId for tracing */
+    runId?: string;
 }
 
 export interface SafePullResult extends CloudPullResult {
@@ -418,7 +479,7 @@ export interface SafePullResult extends CloudPullResult {
  * - If unpushed changes exist and force=true: performs pull (destructive)
  */
 export async function cloudPullAllToStoreSafe(options: SafePullOptions = {}): Promise<SafePullResult> {
-    const { force = false } = options;
+    const { force = false, signal, runId } = options;
     const store = useTrainingStore.getState();
 
     // Check for unpushed local changes
@@ -428,7 +489,6 @@ export async function cloudPullAllToStoreSafe(options: SafePullOptions = {}): Pr
     const isStoreEmpty = store.athletes.length === 0 && store.sessions.length === 0;
 
     if (hasUnpushed && !isStoreEmpty && !force) {
-        console.warn('[CloudService] Safe pull blocked: unpushed local changes detected');
         return {
             success: false,
             blocked: true,
@@ -440,8 +500,8 @@ export async function cloudPullAllToStoreSafe(options: SafePullOptions = {}): Pr
     // Set syncing status
     store.setSyncStatus('syncing');
 
-    // Perform the actual pull (pass force for empty cloud protection)
-    const result = await cloudPullAllToStore({ force });
+    // Perform the actual pull (pass force, signal, and runId for tracing)
+    const result = await cloudPullAllToStore({ force, signal, runId });
 
     return { ...result, blocked: false };
 }

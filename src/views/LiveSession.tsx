@@ -33,7 +33,7 @@ import { OneRMHint } from '../components/common/OneRMHint';
 import { LoadSuggestion } from '../components/common/LoadSuggestion';
 import { useTrainingStore, useSettings, useExercises } from '../store/store';
 import { useLiveSession } from '../hooks';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 
 export function LiveSession() {
     const { id } = useParams<{ id: string }>();
@@ -41,6 +41,20 @@ export function LiveSession() {
     const { addExercise, getAthlete } = useTrainingStore();
     const exercises = useExercises();
     const settings = useSettings();
+
+    // Phase 28B: Contextual return path
+    const [searchParams] = useSearchParams();
+    const locationState = useLocation();
+    const getContextualPath = () => {
+        const urlReturnPath = searchParams.get('returnPath');
+        if (urlReturnPath) return decodeURIComponent(urlReturnPath);
+        const stateFrom = (locationState.state as { from?: string })?.from;
+        if (stateFrom) return stateFrom;
+        // Fallback based on athlete
+        const currentSession = useTrainingStore.getState().getSession(id || '');
+        if (currentSession?.athleteId) return `/athletes/${currentSession.athleteId}/calendar`;
+        return '/library?tab=templates';
+    };
 
     const {
         session,
@@ -96,7 +110,7 @@ export function LiveSession() {
                         icon="❌"
                         title="Session not found"
                         description="The session you're looking for doesn't exist."
-                        action={{ label: 'Back to Sessions', onClick: () => navigate('/sessions') }}
+                        action={{ label: '← Volver', onClick: () => navigate(getContextualPath()) }}
                     />
                 </AuraPanel>
             </div>
@@ -117,17 +131,27 @@ export function LiveSession() {
                 athlete={athlete}
                 exercisesMap={exercisesMap}
                 onStart={handleStartSession}
-                onEdit={() => navigate(`/planning?tab=sessions&sessionId=${session.id}&mode=edit`)}
-                onBack={() => navigate('/sessions')}
+                onEdit={() => {
+                    // Phase 28B: Include returnPath for contextual back navigation
+                    const returnParam = session.athleteId
+                        ? `&returnPath=${encodeURIComponent(`/athletes/${session.athleteId}/calendar`)}`
+                        : '';
+                    navigate(`/planning?tab=sessions&sessionId=${session.id}&mode=edit${returnParam}`);
+                }}
+                onBack={() => navigate(getContextualPath())}
             />
         );
     }
 
     // Completed session → Show summary view
     if (session.status === 'completed') {
-        // Phase 19B: Navigate athlete to /me, coach to /
-        const backPath = athlete ? '/me' : '/';
-        const calendarPath = '/planning?tab=calendar';
+        // Phase 28B: Contextual navigation - use athlete calendar if available
+        const backPath = session.athleteId
+            ? `/athletes/${session.athleteId}/calendar`
+            : (athlete ? '/me' : '/');
+        const calendarPath = session.athleteId
+            ? `/athletes/${session.athleteId}/calendar`
+            : '/library?tab=templates';
         return (
             <SessionCompletedSummary
                 session={session}
@@ -398,7 +422,9 @@ export function LiveSession() {
                 footer={
                     <>
                         <AuraButton variant="ghost" onClick={() => setShowExitModal(false)}>Keep Training</AuraButton>
-                        <AuraButton onClick={() => navigate('/sessions')}>Exit</AuraButton>
+                        <AuraButton onClick={() => navigate(getContextualPath())}>
+                            {athlete ? `Salir al calendario de ${athlete.name}` : 'Salir'}
+                        </AuraButton>
                     </>
                 }
             >

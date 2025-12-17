@@ -26,13 +26,14 @@ interface DayAgendaPanelProps {
     onClose: () => void;
     selectedDate: string; // YYYY-MM-DD
     initialAthleteId?: string; // Phase 12D: Pre-select athlete from Calendar filter
+    returnPath?: string; // Phase 28B: Contextual return path for athlete flow
 }
 
 // ============================================
 // COMPONENT
 // ============================================
 
-export function DayAgendaPanel({ isOpen, onClose, selectedDate, initialAthleteId }: DayAgendaPanelProps) {
+export function DayAgendaPanel({ isOpen, onClose, selectedDate, initialAthleteId, returnPath }: DayAgendaPanelProps) {
     const navigate = useNavigate();
     const athletes = useAthletes();
     const sessions = useSessions();
@@ -136,9 +137,10 @@ export function DayAgendaPanel({ isOpen, onClose, selectedDate, initialAthleteId
         setSelectedTime(null);
 
         if (action === 'create') {
-            // Navigate to planning with sessionId in edit mode
+            // Phase 28B: Navigate to session editor with contextual returnPath
             onClose();
-            navigate(`/planning?tab=sessions&sessionId=${newSession.id}&mode=edit`);
+            const returnParam = returnPath ? `&returnPath=${encodeURIComponent(returnPath)}` : '';
+            navigate(`/planning?tab=sessions&sessionId=${newSession.id}&mode=edit${returnParam}`);
         } else {
             // For reserve, just close and show feedback
             onClose();
@@ -288,7 +290,9 @@ export function DayAgendaPanel({ isOpen, onClose, selectedDate, initialAthleteId
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     onClose();
-                                                    navigate(`/planning?tab=sessions&sessionId=${s.id}&mode=edit`);
+                                                    // Phase 28B: Include returnPath for contextual back
+                                                    const returnParam = returnPath ? `&returnPath=${encodeURIComponent(returnPath)}` : '';
+                                                    navigate(`/planning?tab=sessions&sessionId=${s.id}&mode=edit${returnParam}`);
                                                 }}
                                                 className="min-h-11 px-3 py-2 rounded-lg bg-[#1A1A1A] border border-[#333] hover:border-[#C5A572] transition-all flex items-center gap-2"
                                                 title={`Editar: ${s.name}`}

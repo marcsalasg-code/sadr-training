@@ -252,17 +252,21 @@ export function SessionCompletedSummary({
                         </AuraButton>
                     </>
                 ) : (
-                    // Coach: Original actions (dashboard + calendar)
+                    // Coach: Phase 28C - Context-aware labels
                     <>
                         <AuraButton variant="gold" fullWidth onClick={onBackToDashboard}>
-                            ← Back to Dashboard
+                            {session.athleteId && athlete
+                                ? `← Volver a ${athlete.name}`
+                                : '← Volver al Dashboard'}
                         </AuraButton>
                         <AuraButton variant="secondary" fullWidth onClick={onViewCalendar}>
-                            View Calendar
+                            {session.athleteId && athlete
+                                ? `📅 Calendario de ${athlete.name}`
+                                : '📅 Ver calendario'}
                         </AuraButton>
                         {onViewDetails && (
                             <AuraButton variant="ghost" onClick={onViewDetails}>
-                                View Details
+                                Ver detalles
                             </AuraButton>
                         )}
                     </>

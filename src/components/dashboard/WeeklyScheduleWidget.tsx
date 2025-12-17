@@ -279,7 +279,7 @@ export function WeeklyScheduleWidget() {
                     <p className="text-gray-500 mb-3">No sessions scheduled this week</p>
                     <AuraButton
                         variant="secondary"
-                        onClick={() => navigate('/planning?tab=sessions')}
+                        onClick={() => navigate('/library?tab=templates')}
                     >
                         + Schedule Sessions
                     </AuraButton>

@@ -82,7 +82,7 @@ export function Dashboard() {
                 title="Dashboard"
                 subtitle="Daily overview and active metrics."
                 action={
-                    <AuraButton onClick={() => navigate('/sessions')}>
+                    <AuraButton onClick={() => navigate('/library?tab=templates')}>
                         + Nueva Sesión
                     </AuraButton>
                 }
@@ -195,7 +195,7 @@ export function Dashboard() {
                                     variant="gold"
                                     fullWidth
                                     size="sm"
-                                    onClick={() => navigate('/sessions')}
+                                    onClick={() => navigate('/library?tab=templates')}
                                     className="mt-3"
                                 >
                                     Start Today's Session
@@ -278,7 +278,7 @@ export function Dashboard() {
                                 </p>
                             </div>
                         </div>
-                        <AuraButton onClick={() => navigate('/sessions')}>
+                        <AuraButton onClick={() => navigate('/library?tab=templates')}>
                             Ver sesiones
                         </AuraButton>
                     </div>
@@ -315,7 +315,7 @@ export function Dashboard() {
                 <AuraPanel
                     header={
                         <button
-                            onClick={() => navigate('/sessions?filter=recent')}
+                            onClick={() => navigate('/analytics?tab=training')}
                             className="w-full flex items-center justify-between group py-1"
                             role="link"
                             aria-label="Ver todas las sesiones recientes"

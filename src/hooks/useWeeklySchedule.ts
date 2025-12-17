@@ -121,14 +121,14 @@ export function useWeeklySchedule(): UseWeeklyScheduleReturn {
         return weekRange.label;
     }, [today]);
 
-    // Navigate to full calendar
+    // Navigate to full calendar (Phase 28B: library is the new hub)
     const gotoFullCalendar = useCallback(() => {
-        navigate('/calendar');
+        navigate('/library?tab=templates');
     }, [navigate]);
 
-    // Create session for a specific date
+    // Create session for a specific date (Phase 28B: navigate to library)
     const createSessionForDate = useCallback((date: string) => {
-        navigate(`/sessions?date=${date}`);
+        navigate(`/library?tab=templates`);
     }, [navigate]);
 
     // Start/continue a session

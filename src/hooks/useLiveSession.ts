@@ -12,7 +12,7 @@
  */
 
 import { useState, useMemo, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { useTrainingStore, useSettings, useExercises, useSessions, useAthletes } from '../store/store';
 import { useRestTimer } from './useRestTimer';
 import { useLiveSessionModals } from './useLiveSessionModals';
@@ -122,6 +122,22 @@ export function useLiveSession(sessionId: string | undefined): UseLiveSessionRet
 
     const session = getSession(sessionId || '');
     const restTimer = useRestTimer(settings.defaultRestSeconds);
+
+    // Phase 28B: Contextual return path
+    const [searchParams] = useSearchParams();
+    const location = useLocation();
+    const getReturnPath = useCallback(() => {
+        // Priority 1: returnPath from URL
+        const urlReturnPath = searchParams.get('returnPath');
+        if (urlReturnPath) return decodeURIComponent(urlReturnPath);
+        // Priority 2: location.state.from
+        const stateFrom = (location.state as { from?: string })?.from;
+        if (stateFrom) return stateFrom;
+        // Priority 3: Athlete calendar if we have athleteId
+        if (session?.athleteId) return `/athletes/${session.athleteId}/calendar`;
+        // Fallback: Library
+        return '/library?tab=templates';
+    }, [searchParams, location.state, session?.athleteId]);
 
     // ============================================
     // STATE
@@ -314,22 +330,25 @@ export function useLiveSession(sessionId: string | undefined): UseLiveSessionRet
             ),
             avgIntensity,
         });
-        navigate('/sessions');
-    }, [session, sessionStartTime, liveStats, getAthlete, getExercise, updateAthlete, updateSession, navigate]);
+        // Phase 28B: Navigate to contextual return path
+        navigate(getReturnPath());
+    }, [session, sessionStartTime, liveStats, getAthlete, getExercise, updateAthlete, updateSession, navigate, getReturnPath]);
 
     const handleCancelSession = useCallback(() => {
         if (!session) return;
         updateSession(session.id, { status: 'cancelled' });
-        navigate('/sessions');
-    }, [session, updateSession, navigate]);
+        // Phase 28B: Navigate to contextual return path
+        navigate(getReturnPath());
+    }, [session, updateSession, navigate, getReturnPath]);
 
     const handleExitClick = useCallback(() => {
         if (session?.status === 'in_progress' && liveStats.completedSets > 0) {
             modals.setShowExitModal(true);
         } else {
-            navigate('/sessions');
+            // Phase 28B: Navigate to contextual return path
+            navigate(getReturnPath());
         }
-    }, [session, liveStats.completedSets, navigate, modals]);
+    }, [session, liveStats.completedSets, navigate, modals, getReturnPath]);
 
     const handleFatigueConfirm = useCallback((value: number) => {
         if (!session) return;

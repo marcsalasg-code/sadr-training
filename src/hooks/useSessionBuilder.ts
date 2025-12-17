@@ -79,11 +79,11 @@ export function useSessionBuilder(): UseSessionBuilderReturn {
 
         const session = addSession(sessionFromMapper);
 
-        // Navigate if requested
+        // Navigate if requested (Phase 28B: use library instead of /sessions)
         if (options.navigateAfterCreate) {
             const path = options.navigateTo === 'live'
                 ? `/sessions/live/${session.id}`
-                : '/sessions';
+                : '/library?tab=templates';
             navigate(path);
         }
 
@@ -107,10 +107,11 @@ export function useSessionBuilder(): UseSessionBuilderReturn {
 
         const session = addSession(sessionData);
 
+        // Phase 28B: use library instead of /sessions
         if (options.navigateAfterCreate) {
             const path = options.navigateTo === 'live'
                 ? `/sessions/live/${session.id}`
-                : '/sessions';
+                : '/library?tab=templates';
             navigate(path);
         }
 
@@ -168,10 +169,11 @@ export function useSessionBuilder(): UseSessionBuilderReturn {
 
         const session = addSession(sessionData);
 
+        // Phase 28B: use library instead of /sessions
         if (options.navigateAfterCreate) {
             const path = options.navigateTo === 'live'
                 ? `/sessions/live/${session.id}`
-                : '/sessions';
+                : '/library?tab=templates';
             navigate(path);
         }
 

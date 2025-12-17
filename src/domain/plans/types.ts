@@ -5,7 +5,7 @@
  */
 
 import type { UUID } from '../shared';
-import type { BlockType } from '../sessions/types';
+import type { BlockType, WorkoutSession } from '../sessions/types';
 
 // Re-export for backward compatibility
 export type { UUID, BlockType };
@@ -86,6 +86,12 @@ export interface PlannedSession {
     templateId?: string;
     focus?: string;
     estimatedDuration?: number;
+    /**
+     * Phase 23 P0.2: Optional snapshot of exercises at planning time.
+     * If present, this is used instead of fetching from the live template.
+     * Backwards compatible: null/undefined means fallback to templateId lookup.
+     */
+    snapshot?: WorkoutSession;
 }
 
 export interface WeekPlan {

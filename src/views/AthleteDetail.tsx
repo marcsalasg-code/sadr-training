@@ -232,7 +232,7 @@ export function AthleteDetail() {
             <AthleteQuickActions
                 athleteId={athlete.id}
                 hasLastSession={hasLastSession}
-                onViewCalendar={() => navigate(`/calendar?athleteId=${athlete.id}`)}
+                onViewCalendar={() => navigate(`/athletes/${athlete.id}/calendar`)}
                 onViewAnalytics={() => navigate(`/analytics?athleteId=${athlete.id}`)}
                 onOpenPlanModal={() => setShowTrainingPlanModal(true)}
                 onRepeatLastSession={() => repeatLastSession(athlete.id)}

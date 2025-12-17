@@ -24,3 +24,5 @@ export { useActorScope, type ActorScope } from './useActorScope';
 // Phase 22B: Cloud Bootstrap
 export { useCloudBootstrap, type BootstrapStatus, type CloudBootstrapState } from './useCloudBootstrap';
 
+// Phase 28: Contextual navigation
+export { useReturnPath } from './useReturnPath';

@@ -14,8 +14,7 @@ import {
     AuraBadge,
 } from '../components/ui/aura';
 import { useSettings, useTrainingStore } from '../store/store';
-import { AIEnginePanel, SystemStatsPanel, FeedbackPanel, SimulatorPanel, CategoryManager } from '../components/lab';
-import { OneRMAnchorManager } from '../components/common/OneRMAnchorManager';
+// Phase 28: Lab components moved to DevLabView
 import { useIsAthlete } from '../hooks';
 import { isSupabaseConfigured } from '../lib/supabase';
 import {
@@ -197,8 +196,8 @@ export function SettingsView() {
     const [pendingImportFile, setPendingImportFile] = useState<File | null>(null);
     const [importError, setImportError] = useState<string | null>(null);
     const [importSuccess, setImportSuccess] = useState<string | null>(null);
-    const [activeTab, setActiveTab] = useState<'training' | 'categories' | 'interface' | 'data' | 'cloud' | 'advanced'>('training');
-    const [advancedSubTab, setAdvancedSubTab] = useState<'experimental' | 'ai' | 'anchors' | 'categories' | 'feedback' | 'simulator' | 'system'>('experimental');
+    // Phase 28: Removed 'advanced' tab - now at /devlab
+    const [activeTab, setActiveTab] = useState<'training' | 'categories' | 'interface' | 'data' | 'cloud'>('training');
 
     // Cloud sync state
     const [cloudUser, setCloudUser] = useState<{ email: string } | null>(null);
@@ -327,27 +326,17 @@ export function SettingsView() {
         setCloudMessage({ type: 'success', text: 'Sesión cerrada' });
     };
 
-    const tabs: Array<{ id: 'training' | 'categories' | 'interface' | 'data' | 'cloud' | 'advanced'; label: string; icon: string }> = [
+    // Phase 28: Removed 'advanced' tab - now at /devlab
+    const tabs: Array<{ id: 'training' | 'categories' | 'interface' | 'data' | 'cloud'; label: string; icon: string }> = [
         { id: 'training', label: 'Training', icon: '🏋️' },
         { id: 'categories', label: 'Categorías', icon: '🏷️' },
         { id: 'interface', label: 'Interface', icon: '🎨' },
         { id: 'data', label: 'Data', icon: '💾' },
         { id: 'cloud', label: 'Cloud', icon: '☁️' },
-        { id: 'advanced', label: 'Avanzado', icon: '🔬' },
     ];
 
-    // Phase 15C: Filter tabs based on role
-    const visibleTabs = isAthlete ? tabs.filter(t => t.id !== 'advanced') : tabs;
-
-    const advancedTabs = [
-        { id: 'experimental', label: 'Experimental', icon: '🧪' },
-        { id: 'ai', label: 'AI Engine', icon: '🤖' },
-        { id: 'anchors', label: '1RM Anchors', icon: '🏋️' },
-        { id: 'categories', label: 'Categories', icon: '📁' },
-        { id: 'feedback', label: 'Feedback', icon: '📝' },
-        { id: 'simulator', label: 'Simulator', icon: '🎲' },
-        { id: 'system', label: 'System', icon: '🔧' },
-    ] as const;
+    // Phase 28: All tabs now visible (advanced moved to /devlab)
+    const visibleTabs = tabs;
 
     return (
         <div className="p-8 space-y-6 max-w-4xl mx-auto">
@@ -801,89 +790,7 @@ export function SettingsView() {
                 </div>
             )}
 
-            {/* Advanced Tab (Lab) */}
-            {activeTab === 'advanced' && (
-                <div className="space-y-6">
-                    <AuraPanel header={<span className="text-white font-medium">🔬 Development Console</span>}>
-                        <p className="text-sm text-gray-500 mb-4">
-                            Advanced tools for development and debugging.
-                        </p>
-
-                        {/* Sub-tabs */}
-                        <div className="flex gap-2 flex-wrap mb-4">
-                            {advancedTabs.map(tab => (
-                                <button
-                                    key={tab.id}
-                                    onClick={() => setAdvancedSubTab(tab.id)}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${advancedSubTab === tab.id
-                                        ? 'bg-purple-600 text-white'
-                                        : 'bg-[#1A1A1A] text-gray-400 hover:bg-[#222]'
-                                        }`}
-                                >
-                                    {tab.icon} {tab.label}
-                                </button>
-                            ))}
-                        </div>
-                    </AuraPanel>
-
-                    {/* Advanced Tab Content */}
-                    {advancedSubTab === 'experimental' && (
-                        <AuraPanel header={<span className="text-white font-medium">🧪 Experimental Features</span>}>
-                            <p className="text-sm text-gray-500 mb-4">
-                                Features in testing phase. May change or be removed in future versions.
-                            </p>
-
-                            {/* Role Mode Selector */}
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-sm text-gray-400 mb-2">Role Mode</label>
-                                    <p className="text-xs text-gray-600 mb-3">
-                                        Changes sidebar visibility based on role. No route guards in Iteration 1.
-                                    </p>
-                                    <div className="flex gap-2">
-                                        <button
-                                            onClick={() => setRoleMode('coach')}
-                                            className={`flex-1 p-3 rounded-lg text-sm font-medium transition-all ${roleMode === 'coach'
-                                                ? 'bg-[var(--color-accent-gold)] text-black'
-                                                : 'bg-[#1A1A1A] text-gray-400 hover:bg-[#222]'
-                                                }`}
-                                        >
-                                            🏋️ Coach
-                                        </button>
-                                        <button
-                                            onClick={() => setRoleMode('athlete')}
-                                            className={`flex-1 p-3 rounded-lg text-sm font-medium transition-all ${roleMode === 'athlete'
-                                                ? 'bg-blue-600 text-white'
-                                                : 'bg-[#1A1A1A] text-gray-400 hover:bg-[#222]'
-                                                }`}
-                                        >
-                                            🏃 Athlete
-                                        </button>
-                                        <button
-                                            onClick={() => setRoleMode('admin')}
-                                            className={`flex-1 p-3 rounded-lg text-sm font-medium transition-all ${roleMode === 'admin'
-                                                ? 'bg-purple-600 text-white'
-                                                : 'bg-[#1A1A1A] text-gray-400 hover:bg-[#222]'
-                                                }`}
-                                        >
-                                            🔧 Admin
-                                        </button>
-                                    </div>
-                                    <p className="text-xs text-gray-600 mt-2">
-                                        Current: <AuraBadge variant={roleMode === 'coach' ? 'gold' : 'muted'}>{roleMode}</AuraBadge>
-                                    </p>
-                                </div>
-                            </div>
-                        </AuraPanel>
-                    )}
-                    {advancedSubTab === 'ai' && <AIEnginePanel />}
-                    {advancedSubTab === 'anchors' && <OneRMAnchorManager />}
-                    {advancedSubTab === 'categories' && <CategoryManager />}
-                    {advancedSubTab === 'feedback' && <FeedbackPanel />}
-                    {advancedSubTab === 'simulator' && <SimulatorPanel />}
-                    {advancedSubTab === 'system' && <SystemStatsPanel />}
-                </div>
-            )}
+            {/* Phase 28: Advanced tab moved to /devlab */}
 
             {/* Modals */}
             <ConfirmModal
